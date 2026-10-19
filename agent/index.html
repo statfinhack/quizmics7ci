@@ -297,7 +297,7 @@ async function startQuiz() {
 
   try {
     // Chercher le quiz
-    const quizzes = await supabase(`quizzes?code=ilike.${encodeURIComponent(code)}&actif=eq.1&limit=1`);
+    const quizzes = await supabase(`quizzes?code=ilike.${encodeURIComponent(code)}&limit=1`);
     if (!quizzes || quizzes.length === 0) {
       errEl.textContent = "Code incorrect ou quiz désactivé."; errEl.classList.add("show");
       return;
