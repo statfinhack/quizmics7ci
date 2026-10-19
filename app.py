@@ -37,8 +37,24 @@ def _fmt(t):
     return t
 
 
-SUPA_URL_ST = "https://yptijbomgldhwftuicno.supabase.co"
-SUPA_KEY_ST = "sb_publishable_FERrIaP0u1ITsyqC9wiB8A_Lr9oOrpv"
+SUPA_URL_ST     = "https://rmmizzwnierlvnojemna.supabase.co"
+SUPA_KEY_ST     = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtbWl6enduaWVybHZub2plbW5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0MDk3NDgsImV4cCI6MjEwNzk4NTc0OH0.rhzVfVgKQ1r0dARnJKjDtB9W9LM3aoeHI7IxoeXBxYw"
+SUPA_SERVICE_ST = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtbWl6enduaWVybHZub2plbW5hIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MjQwOTc0OCwiZXhwIjoyMTA3OTg1NzQ4fQ.sBDXGO9Cpfwul5EUjymM81T1kzUcvhduytA_8aXzVz4"
+
+def _ensure_bucket():
+    """Crée le bucket quiz-images s'il n'existe pas encore."""
+    try:
+        r = requests.post(
+            f"{SUPA_URL_ST}/storage/v1/bucket",
+            json={"id": "quiz-images", "name": "quiz-images", "public": True},
+            headers={"apikey": SUPA_SERVICE_ST, "Authorization": f"Bearer {SUPA_SERVICE_ST}",
+                     "Content-Type": "application/json"},
+            timeout=10)
+        # 200/201 = créé, 400 avec "already exists" = déjà là, les deux sont OK
+    except Exception:
+        pass
+
+_ensure_bucket()
 
 def _upload_image(file_obj, label):
     ext  = (file_obj.name.rsplit(".",1)[-1] or "jpg").lower()
@@ -46,7 +62,7 @@ def _upload_image(file_obj, label):
     r = requests.put(
         f"{SUPA_URL_ST}/storage/v1/object/quiz-images/{name}",
         data=file_obj.getvalue(),
-        headers={"apikey": SUPA_KEY_ST, "Authorization": f"Bearer {SUPA_KEY_ST}",
+        headers={"apikey": SUPA_SERVICE_ST, "Authorization": f"Bearer {SUPA_SERVICE_ST}",
                  "Content-Type": f"image/{ext}", "x-upsert": "true"},
         timeout=30)
     if r.status_code not in (200,201):
