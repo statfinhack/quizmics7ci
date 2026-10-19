@@ -1243,10 +1243,11 @@ def _tab_question_stats():
         txt_clean = _strip_html(s["texte"])
         preview = txt_clean[:90] + ("…" if len(txt_clean) > 90 else "")
 
+        q_num = s.get("num", i+1)
         st.markdown(f"""
         <div class="qstat-card">
           <div class="qstat-header">
-            <span class="qstat-num {badge_cls}">#{i+1} · {taux:.0f}% erreurs</span>
+            <span class="qstat-num {badge_cls}">Q{q_num} · {taux:.0f}% erreurs</span>
             <span class="qstat-txt">{preview}</span>
           </div>
           <div class="qstat-bar-wrap">
