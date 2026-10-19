@@ -2,27 +2,18 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<!-- Fix Android Force Dark : color-scheme only light = le navigateur n'applique pas son dark mode automatique -->
+<!-- On n'utilise PAS filter:none sur html — cela créerait un stacking context GPU qui cause le dimming des éléments fixed -->
 <meta name="color-scheme" content="light">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Quiz</title>
+<title>Quiz — QuizAgent CI</title>
 <script src="config.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-/* ── CORRECTIF 1 : Bloquer le dark mode forcé Android ─────────────────── */
-/* color-scheme: only light = le navigateur ne peut PAS appliquer son dark mode automatique */
-/* filter: none = bloque le filtre CSS qu'Android Chrome injecte au niveau rendu */
-:root { color-scheme: only light }
-html  { filter: none !important; -webkit-filter: none !important;
-        background: #F0F4FF !important; color: #0F172A !important }
-body  { background: #F0F4FF !important; color: #0F172A !important }
-@media (prefers-color-scheme: dark) {
-  html, body { filter: none !important; -webkit-filter: none !important;
-               background: #F0F4FF !important; color: #0F172A !important }
-}
-
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
+  color-scheme:only light;
   --blue:#2563EB;--blue-d:#1D4ED8;--blue-x:#1E3A8A;
   --blue-l:#EFF6FF;--blue-m:#BFDBFE;
   --green:#059669;--orange:#D97706;--red:#DC2626;
@@ -31,15 +22,20 @@ body  { background: #F0F4FF !important; color: #0F172A !important }
   --shadow:0 1px 3px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.05);
   --r:14px;--rs:10px;
 }
-html,body{font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;color:var(--text)}
+/* Forcer fond et couleur de texte en mode sombre — sans filter qui brise les éléments fixed */
+html,body{font-family:'Inter',sans-serif;background:#F0F4FF;min-height:100vh;color:#0F172A}
+@media(prefers-color-scheme:dark){
+  html,body{background:#F0F4FF!important;color:#0F172A!important}
+}
 .wrap{max-width:600px;margin:0 auto;padding-bottom:100px}
 
 /* Timer fixe */
 #timer-bar{
   position:fixed;top:0;left:0;right:0;z-index:9999;
-  background:#EEF2FE !important;
+  background:rgba(240,244,255,.95);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
   border-bottom:1px solid var(--border);
-  box-shadow:0 2px 8px rgba(0,0,0,.08);
+  box-shadow:0 2px 20px rgba(0,0,0,.07);
   padding:8px 16px 7px;
 }
 .timer-inner{max-width:600px;margin:0 auto}
@@ -49,26 +45,22 @@ html,body{font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;c
 }
 .t-blue{background:linear-gradient(135deg,var(--blue-x),var(--blue));box-shadow:0 4px 16px rgba(37,99,235,.3)}
 .t-orange{background:linear-gradient(135deg,#92400E,var(--orange));box-shadow:0 4px 16px rgba(217,119,6,.3)}
-.t-red{background:linear-gradient(135deg,#7F1D1D,var(--red));box-shadow:0 4px 16px rgba(220,38,38,.35)}
-/* Pas d'animation continue sur .t-red — toute animation sur position:fixed
-   peut déclencher le mode économie d'écran Android (GPU compositing continu) */
-
-@keyframes spin{to{transform:rotate(360deg)}}
-
+.t-red{background:linear-gradient(135deg,#7F1D1D,var(--red));box-shadow:0 4px 16px rgba(220,38,38,.35);animation:pulse .65s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.82}}
 .t-ico{font-size:1.8rem}
-.t-time{color:#fff !important;font-size:2.2rem;font-weight:900;letter-spacing:5px;margin:0;line-height:1;font-variant-numeric:tabular-nums}
-.t-lbl{color:rgba(255,255,255,.72) !important;font-size:.7rem;font-weight:700;margin:4px 0 0;text-transform:uppercase;letter-spacing:.1em}
+.t-time{color:#fff;font-size:2.2rem;font-weight:900;letter-spacing:5px;margin:0;line-height:1;font-variant-numeric:tabular-nums}
+.t-lbl{color:rgba(255,255,255,.72);font-size:.7rem;font-weight:700;margin:4px 0 0;text-transform:uppercase;letter-spacing:.1em}
 .spacer-timer{height:80px}
 
 /* Progress */
 .prog-wrap{padding:12px 16px 4px}
-.prog-top{display:flex;justify-content:space-between;font-size:.82rem;color:var(--text2) !important;font-weight:600;margin-bottom:7px}
+.prog-top{display:flex;justify-content:space-between;font-size:.82rem;color:var(--text2);font-weight:600;margin-bottom:7px}
 .prog-bg{background:var(--blue-m);border-radius:99px;height:7px;overflow:hidden}
 .prog-fill{background:linear-gradient(90deg,var(--blue),#60A5FA);height:7px;border-radius:99px;transition:width .4s ease}
 
 /* Question */
 .qcard{
-  background:#fff !important;
+  background:var(--surface);
   border-left:5px solid var(--blue);
   border-top:1.5px solid var(--border);
   border-right:1.5px solid var(--border);
@@ -78,67 +70,63 @@ html,body{font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;c
   box-shadow:var(--shadow);
 }
 .qmeta{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
-.q-num{background:var(--blue);color:#fff !important;font-size:.7rem;font-weight:900;padding:3px 10px;border-radius:99px}
-.q-type{color:var(--text3) !important;font-size:.75rem;font-weight:600}
-.q-pts{background:#F1F5F9 !important;color:var(--text2) !important;font-size:.7rem;font-weight:800;padding:3px 10px;border-radius:99px;margin-left:auto}
-.qtext{font-size:15.5px;font-weight:400;color:#0F172A !important;margin:0 0 12px;line-height:1.55}
+.q-num{background:var(--blue);color:#fff;font-size:.7rem;font-weight:900;padding:3px 10px;border-radius:99px}
+.q-type{color:var(--text3);font-size:.75rem;font-weight:600}
+.q-pts{background:#F1F5F9;color:var(--text2);font-size:.7rem;font-weight:800;padding:3px 10px;border-radius:99px;margin-left:auto}
+.qtext{font-size:15.5px;font-weight:400;color:#0F172A;margin:0 0 12px;line-height:1.55}
 
 /* Options */
 .options{display:flex;flex-direction:column;gap:7px;padding:0 0 6px}
 .opt{
   display:flex;align-items:center;gap:12px;
-  background:#F0F4FF !important;border:2px solid var(--border);
+  background:var(--bg);border:2px solid var(--border);
   border-radius:var(--rs);padding:13px 15px;
   cursor:pointer;transition:all .15s;
   -webkit-tap-highlight-color:transparent;
   user-select:none;
 }
-.opt:active{background:var(--blue-l) !important;border-color:var(--blue)}
-.opt.selected{background:var(--blue-l) !important;border-color:var(--blue)}
+.opt:active{background:var(--blue-l);border-color:var(--blue)}
+.opt.selected{background:var(--blue-l);border-color:var(--blue);color:var(--blue-d)}
 .opt-indicator{
   width:22px;height:22px;border-radius:50%;border:2.5px solid var(--border);
   flex-shrink:0;display:flex;align-items:center;justify-content:center;
-  background:#fff !important;
   transition:all .15s;
 }
-.opt.selected .opt-indicator{background:var(--blue) !important;border-color:var(--blue)}
+.opt.selected .opt-indicator{background:var(--blue);border-color:var(--blue)}
 .opt-indicator-sq{border-radius:6px}
-.opt-check{display:none;color:#fff !important;font-size:.75rem;font-weight:900}
+.opt-check{display:none;color:#fff;font-size:.75rem;font-weight:900}
 .opt.selected .opt-check{display:block}
-
-/* ── CORRECTIF 3 : texte des options forcé en couleur sombre ─────────── */
-/* Android Chrome Force Dark remplace color:inherit par blanc sur fonds clairs */
-/* On écrit la couleur en dur sur TOUS les états possibles                  */
-.opt-text{font-size:15px !important;font-weight:500 !important;line-height:1.4;color:#0F172A !important}
-.opt.selected .opt-text{color:#1D4ED8 !important;font-weight:600 !important}
-.opt:not(.selected) .opt-text{color:#0F172A !important}
+/* Fix Android dark mode : forcer la couleur du texte des options explicitement */
+.opt-text{font-size:15px;font-weight:500;line-height:1.4;color:#0F172A}
+.opt.selected .opt-text{color:var(--blue-d)}
 
 /* Input text/number */
 .q-input{
   width:100%;padding:13px 16px;font-size:16px;font-family:'Inter',sans-serif;
   font-weight:500;border:2px solid var(--border);border-radius:var(--rs);
-  background:#fff !important;color:#0F172A !important;outline:none;
+  background:var(--surface);color:var(--text);outline:none;
   box-shadow:var(--shadow);transition:border-color .15s;margin-bottom:6px;
   -webkit-appearance:none;
 }
 .q-input:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(37,99,235,.1)}
-.q-input::placeholder{color:var(--text3) !important}
+.q-input::placeholder{color:var(--text3)}
 textarea.q-input{resize:none;min-height:90px}
 
 /* Submit bar */
 .submit-bar{
   position:fixed;bottom:0;left:0;right:0;z-index:9998;
-  background:#EEF2FE !important;
+  background:rgba(240,244,255,.97);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
   border-top:1px solid var(--border);
-  padding:12px 16px 16px;box-shadow:0 -2px 8px rgba(0,0,0,.08);
+  padding:12px 16px 16px;box-shadow:0 -4px 20px rgba(0,0,0,.07);
 }
 .submit-inner{max-width:600px;margin:0 auto}
-.prog-mini{font-size:.78rem;color:var(--text2) !important;font-weight:600;text-align:center;margin-bottom:8px}
+.prog-mini{font-size:.78rem;color:var(--text2);font-weight:600;text-align:center;margin-bottom:8px}
 .btn-submit{
   width:100%;padding:16px;font-size:15px;font-family:'Inter',sans-serif;
   font-weight:800;border:none;border-radius:var(--rs);cursor:pointer;
   background:linear-gradient(135deg,var(--blue),var(--blue-d));
-  color:#fff !important;box-shadow:0 4px 15px rgba(37,99,235,.4);
+  color:#fff;box-shadow:0 4px 15px rgba(37,99,235,.4);
   transition:all .15s;letter-spacing:-.01em;
   -webkit-tap-highlight-color:transparent;
 }
@@ -148,13 +136,14 @@ textarea.q-input{resize:none;min-height:90px}
 /* Loader overlay */
 #overlay{
   display:none;position:fixed;inset:0;z-index:99999;
-  background:rgba(240,244,255,.95) !important;
+  background:rgba(240,244,255,.95);
   flex-direction:column;align-items:center;justify-content:center;
   font-family:'Inter',sans-serif;
 }
 #overlay.show{display:flex}
 .ov-spinner{width:48px;height:48px;border:4px solid var(--blue-m);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;margin-bottom:16px}
-.ov-text{font-size:1rem;font-weight:700;color:var(--text2) !important}
+.ov-text{font-size:1rem;font-weight:700;color:var(--text2)}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -172,8 +161,8 @@ textarea.q-input{resize:none;min-height:90px}
 <div class="wrap">
   <div class="prog-wrap">
     <div class="prog-top">
-      <span id="quiz-title-prog" style="font-weight:700;color:#0F172A"></span>
-      <span id="prog-count" style="color:#475569">0/0 répondue(s)</span>
+      <span id="quiz-title-prog" style="font-weight:700"></span>
+      <span id="prog-count">0/0 répondue(s)</span>
     </div>
     <div class="prog-bg"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
   </div>
@@ -194,10 +183,10 @@ textarea.q-input{resize:none;min-height:90px}
 </div>
 
 <script>
-// SUPA_URL et SUPA_KEY chargés depuis config.js
+// SUPA_URL, SUPA_KEY et PROJECT_NAME chargés depuis config.js
 document.title = "Quiz — " + PROJECT_NAME;
 
-const H = {
+const headers = {
   "apikey": SUPA_KEY,
   "Authorization": "Bearer " + SUPA_KEY,
   "Content-Type": "application/json",
@@ -206,7 +195,7 @@ const H = {
 
 async function supa(path, opts = {}) {
   const r = await fetch(SUPA_URL + "/rest/v1/" + path, {
-    headers: { ...H, ...(opts.headers || {}) },
+    headers: { ...headers, ...(opts.headers || {}) },
     method: opts.method || "GET",
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
@@ -215,14 +204,15 @@ async function supa(path, opts = {}) {
   return r.json();
 }
 
+// ── Charger les données ──
 let agent = null, quiz = null, questions = [], answers = {}, sessionId = null, startEpoch = null, deviceInfo = "";
 let timerInterval = null, autoSaveInterval = null;
 
 async function init() {
   try {
-    agent      = JSON.parse(sessionStorage.getItem("qa_agent") || "null");
-    quiz       = JSON.parse(sessionStorage.getItem("qa_quiz") || "null");
-    sessionId  = parseInt(sessionStorage.getItem("qa_session_id") || "0");
+    agent     = JSON.parse(sessionStorage.getItem("qa_agent") || "null");
+    quiz      = JSON.parse(sessionStorage.getItem("qa_quiz") || "null");
+    sessionId = parseInt(sessionStorage.getItem("qa_session_id") || "0");
     startEpoch = parseFloat(sessionStorage.getItem("qa_start_epoch") || (Date.now()/1000));
 
     deviceInfo = [
@@ -236,7 +226,9 @@ async function init() {
 
     const qs = await supa(`questions?quiz_id=eq.${quiz.id}&select=id,texte,type,ordre,points,reponse_correcte_num,reponse_correcte_txt,image_url&order=ordre.asc`);
     const qIds = qs.map(q => q.id).join(",");
-    const allOpts = qIds.length > 0 ? await supa(`options?question_id=in.(${qIds})&order=question_id.asc,id.asc`) : [];
+    const allOpts = qIds.length > 0
+      ? await supa(`options?question_id=in.(${qIds})&order=question_id.asc,id.asc`)
+      : [];
     const optsMap = {};
     (allOpts || []).forEach(o => {
       if (!optsMap[o.question_id]) optsMap[o.question_id] = [];
@@ -288,7 +280,7 @@ async function init() {
 
       const banner = document.createElement("div");
       banner.id = "anticheat-banner";
-      banner.style.cssText = "position:fixed;bottom:80px;left:16px;right:16px;background:#FEF3C7!important;border:1.5px solid #FCD34D;border-radius:10px;padding:10px 14px;font-size:.8rem;font-weight:600;color:#92400E!important;z-index:99998;text-align:center";
+      banner.style.cssText = "position:fixed;bottom:80px;left:16px;right:16px;background:#FEF3C7;border:1.5px solid #FCD34D;border-radius:10px;padding:10px 14px;font-size:.8rem;font-weight:600;color:#92400E;z-index:99998;text-align:center";
       banner.innerHTML = "🔒 Mode surveillé — quitter cet écran " + window._quitMax + " fois entraîne la soumission automatique";
       document.body.appendChild(banner);
 
@@ -322,11 +314,11 @@ async function init() {
 function fmt(text) {
   let t = String(text || "");
   t = t.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
-  t = t.replace(/\*([^*]+?)\*/g,  "<i>$1</i>");
-  t = t.replace(/\[rouge\](.+?)\[\/rouge\]/g,   '<b style="color:#DC2626!important;font-weight:700">$1</b>');
-  t = t.replace(/\[bleu\](.+?)\[\/bleu\]/g,     '<b style="color:#1D4ED8!important;font-weight:700">$1</b>');
-  t = t.replace(/\[vert\](.+?)\[\/vert\]/g,     '<b style="color:#059669!important;font-weight:700">$1</b>');
-  t = t.replace(/\[orange\](.+?)\[\/orange\]/g, '<b style="color:#D97706!important;font-weight:700">$1</b>');
+  t = t.replace(/\*([^*]+?)\*/g,    "<i>$1</i>");
+  t = t.replace(/\[rouge\](.+?)\[\/rouge\]/g,   '<b style="color:#DC2626;font-weight:700">$1</b>');
+  t = t.replace(/\[bleu\](.+?)\[\/bleu\]/g,     '<b style="color:#1D4ED8;font-weight:700">$1</b>');
+  t = t.replace(/\[vert\](.+?)\[\/vert\]/g,     '<b style="color:#059669;font-weight:700">$1</b>');
+  t = t.replace(/\[orange\](.+?)\[\/orange\]/g, '<b style="color:#D97706;font-weight:700">$1</b>');
   t = t.replace(/\n/g, "<br>");
   return t;
 }
