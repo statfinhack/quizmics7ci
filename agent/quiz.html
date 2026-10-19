@@ -11,6 +11,7 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
+  color-scheme:light;
   --blue:#2563EB;--blue-d:#1D4ED8;--blue-x:#1E3A8A;
   --blue-l:#EFF6FF;--blue-m:#BFDBFE;
   --green:#059669;--orange:#D97706;--red:#DC2626;
@@ -19,7 +20,8 @@
   --shadow:0 1px 3px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.05);
   --r:14px;--rs:10px;
 }
-html,body{color-scheme:light;font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;color:var(--text)}
+html,body{color-scheme:light;font-family:'Inter',sans-serif;background:#F0F4FF!important;min-height:100vh;color:#0F172A!important}
+@media(prefers-color-scheme:dark){html,body{background:#F0F4FF!important;color:#0F172A!important}}
 .wrap{max-width:600px;margin:0 auto;padding-bottom:100px}
 
 /* Timer fixe */
@@ -66,13 +68,13 @@ html,body{color-scheme:light;font-family:'Inter',sans-serif;background:var(--bg)
 .q-num{background:var(--blue);color:#fff;font-size:.7rem;font-weight:900;padding:3px 10px;border-radius:99px}
 .q-type{color:var(--text3);font-size:.75rem;font-weight:600}
 .q-pts{background:#F1F5F9;color:var(--text2);font-size:.7rem;font-weight:800;padding:3px 10px;border-radius:99px;margin-left:auto}
-.qtext{color:#0F172A;font-size:15.5px;font-weight:400;color:var(--text);margin:0 0 12px;line-height:1.55}
+.qtext{font-size:15.5px;font-weight:400;color:#0F172A!important;margin:0 0 12px;line-height:1.55}
 
 /* Options */
 .options{display:flex;flex-direction:column;gap:7px;padding:0 0 6px}
-.opt{color:#0F172A;
+.opt{color:#0F172A!important;
   display:flex;align-items:center;gap:12px;
-  background:var(--bg);border:2px solid var(--border);
+  background:#F0F4FF!important;border:2px solid #E2E8F4;
   border-radius:var(--rs);padding:13px 15px;
   cursor:pointer;transition:all .15s;
   -webkit-tap-highlight-color:transparent;
@@ -89,7 +91,7 @@ html,body{color-scheme:light;font-family:'Inter',sans-serif;background:var(--bg)
 .opt-indicator-sq{border-radius:6px}
 .opt-check{display:none;color:#fff;font-size:.75rem;font-weight:900}
 .opt.selected .opt-check{display:block}
-.opt-text{font-size:15px;font-weight:500;line-height:1.4;color:#0F172A}
+.opt-text{font-size:15px;font-weight:500;line-height:1.4;color:#0F172A!important}
 
 /* Input text/number */
 .q-input{
