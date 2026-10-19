@@ -934,7 +934,7 @@ def _tab_overview():
                 if diff.seconds<3600:    tstr=f"Il y a {diff.seconds//60} min"
                 elif diff.days==0:       tstr=f"Il y a {diff.seconds//3600}h"
                 else:                    tstr=dt.strftime("%d/%m %H:%M")
-            except: tstr=r["completed_at"][:16] if r["completed_at"] else "—"
+            except: tstr=str(r["completed_at"])[:16] if r["completed_at"] else "—"
             items+=(f'<div class="activity-item">'
                     f'<div class="act-av">{init_r}</div>'
                     f'<div><div class="act-name">{r["nom"]} {r["prenom"]}</div>'
