@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<meta name="color-scheme" content="light">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Quiz</title>
 <script src="config.js"></script>
@@ -18,7 +19,7 @@
   --shadow:0 1px 3px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.05);
   --r:14px;--rs:10px;
 }
-html,body{font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;color:var(--text)}
+html,body{color-scheme:light;font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;color:var(--text)}
 .wrap{max-width:600px;margin:0 auto;padding-bottom:100px}
 
 /* Timer fixe */
@@ -65,11 +66,11 @@ html,body{font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;c
 .q-num{background:var(--blue);color:#fff;font-size:.7rem;font-weight:900;padding:3px 10px;border-radius:99px}
 .q-type{color:var(--text3);font-size:.75rem;font-weight:600}
 .q-pts{background:#F1F5F9;color:var(--text2);font-size:.7rem;font-weight:800;padding:3px 10px;border-radius:99px;margin-left:auto}
-.qtext{font-size:15.5px;font-weight:400;color:var(--text);margin:0 0 12px;line-height:1.55}
+.qtext{color:#0F172A;font-size:15.5px;font-weight:400;color:var(--text);margin:0 0 12px;line-height:1.55}
 
 /* Options */
 .options{display:flex;flex-direction:column;gap:7px;padding:0 0 6px}
-.opt{
+.opt{color:#0F172A;
   display:flex;align-items:center;gap:12px;
   background:var(--bg);border:2px solid var(--border);
   border-radius:var(--rs);padding:13px 15px;
@@ -88,7 +89,7 @@ html,body{font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;c
 .opt-indicator-sq{border-radius:6px}
 .opt-check{display:none;color:#fff;font-size:.75rem;font-weight:900}
 .opt.selected .opt-check{display:block}
-.opt-text{font-size:15px;font-weight:500;line-height:1.4}
+.opt-text{font-size:15px;font-weight:500;line-height:1.4;color:#0F172A}
 
 /* Input text/number */
 .q-input{
@@ -136,7 +137,7 @@ textarea.q-input{resize:none;min-height:90px}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
-<body>
+<body style="background:#F0F4FF;color:#0F172A">
 
 <div id="timer-bar">
   <div class="timer-inner">

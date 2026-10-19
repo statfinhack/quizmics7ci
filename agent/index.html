@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<meta name="color-scheme" content="light">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>QuizAgent</title>
 <script src="config.js"></script>
@@ -19,7 +20,7 @@
   --shadow-b:0 8px 32px rgba(37,99,235,.22);
   --r:14px;--rs:10px;
 }
-html,body{font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;color:var(--text)}
+html,body{color-scheme:light;font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;color:var(--text)}
 .wrap{max-width:600px;margin:0 auto}
 
 /* Hero */
@@ -82,7 +83,7 @@ html,body{font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;c
   color:var(--blue-d);font-weight:800;font-size:14px;
   display:flex;align-items:center;justify-content:center;
 }
-.agent-name{font-weight:700;font-size:15px;color:var(--text)}
+.agent-name{font-weight:700;font-size:15px;color:#0F172A}
 .agent-mat{font-size:.8rem;color:var(--text3);margin-top:2px}
 
 /* Étapes */
@@ -102,7 +103,7 @@ html,body{font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;c
   color:var(--blue-d);font-weight:800;font-size:13px;
   display:flex;align-items:center;justify-content:center;
 }
-.step-name{font-weight:700;font-size:1rem;color:var(--text)}
+.step-name{font-weight:700;font-size:1rem;color:#0F172A}
 .step-sub{font-size:.8rem;color:var(--text3);margin-top:2px}
 
 /* Loader */
@@ -125,7 +126,7 @@ html,body{font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;c
 .spacer2{height:8px}
 </style>
 </head>
-<body>
+<body style="background:#F0F4FF;color:#0F172A">
 <div class="wrap">
   <div class="hero">
     <div class="hero-badge">📋 Plateforme d'évaluation</div>
