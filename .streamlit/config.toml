@@ -1,5 +1,14 @@
-   [browser]
-   gatherUsageStats = false
+[theme]
+primaryColor            = "#2563EB"
+backgroundColor         = "#FFFFFF"
+secondaryBackgroundColor = "#F7F9FD"
+textColor               = "#0F172A"
+font                    = "sans serif"
 
-   [theme]
-   base = "light"
+[server]
+maxUploadSize = 10
+headless      = true
+enableCORS    = false
+
+[browser]
+gatherUsageStats = false
