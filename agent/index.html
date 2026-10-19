@@ -237,7 +237,7 @@ async function searchAgents(q) {
   try {
     const qLow = q.toLowerCase();
     const agents = await supabase(
-      `agents?select=id,nom,prenom,matricule&published=eq.1&or=(nom.ilike.*${encodeURIComponent(q)}*,prenom.ilike.*${encodeURIComponent(q)}*,matricule.ilike.*${encodeURIComponent(q)}*)&order=nom.asc&limit=15`
+      `agents?select=id,nom,prenom,matricule&or=(nom.ilike.*${encodeURIComponent(q)}*,prenom.ilike.*${encodeURIComponent(q)}*,matricule.ilike.*${encodeURIComponent(q)}*)&order=nom.asc&limit=15`
     );
     if (!agents || agents.length === 0) {
       list.innerHTML = '<div class="no-results">Aucun agent trouvé. Contactez votre superviseur.</div>';
@@ -297,7 +297,7 @@ async function startQuiz() {
 
   try {
     // Chercher le quiz
-    const quizzes = await supabase(`quizzes?code=eq.${encodeURIComponent(code)}&actif=eq.1&limit=1`);
+    const quizzes = await supabase(`quizzes?code=eq.${encodeURIComponent(code)}&actif=eq.true&limit=1`);
     if (!quizzes || quizzes.length === 0) {
       errEl.textContent = "Code incorrect ou quiz désactivé."; errEl.classList.add("show");
       return;
