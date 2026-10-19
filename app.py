@@ -6,7 +6,8 @@ import pandas as pd
 import json, time, io, re, requests
 from datetime import datetime, timedelta
 
-import config, hashlib
+import config, hashlib, hmac as _hmac
+import database as _db_module
 from functools import lru_cache
 from database import (
     init_db, search_agents, get_all_agents, upsert_agents,
@@ -80,7 +81,7 @@ html,body,[class*="css"],input,textarea,button,select,.stMarkdown p,label{font-f
 .tt{color:#fff;font-size:1.05rem;font-weight:700}
 /* ── Hero ── */
 .hero{background:linear-gradient(145deg,var(--Bd),var(--B));border-radius:18px;padding:36px 24px 32px;text-align:center;margin-bottom:20px;box-shadow:var(--shb)}
-.hi{font-size:2.8rem;margin-bottom:6px}.ht{color:#fff;font-size:1.85rem;font-weight:900;margin:0 0 5px;letter-spacing:-.5px}.hs{color:rgba(255,255,255,.72);font-size:.95rem;margin:0}
+.hi{font-size:2.8rem;margin-bottom:6px}.ht{color:#fff!important;font-size:1.85rem;font-weight:900;margin:0 0 5px;letter-spacing:-.5px}.hs{color:rgba(255,255,255,.72);font-size:.95rem;margin:0}
 /* ── Boutons ── */
 .stButton>button{font-family:'Outfit',sans-serif!important;font-weight:600!important;font-size:15px!important;border-radius:10px!important;padding:13px 20px!important;width:100%!important;transition:all .15s!important;min-height:48px!important}
 .stButton>button[kind="primary"]{background:var(--B)!important;border:none!important;color:#fff!important;box-shadow:0 3px 10px rgba(29,78,216,.3)!important}
@@ -200,7 +201,42 @@ hr{border:none!important;border-top:1.5px solid var(--bor)!important;margin:18px
 .pill-tot{background:var(--Bm);color:var(--Bd)}
 </style>""", unsafe_allow_html=True)
 
-init_db()
+@st.cache_resource
+def _init_db_once():
+    init_db()
+_init_db_once()
+
+@st.cache_resource
+def _warmup_pool():
+    """Force l'initialisation du pool PostgreSQL une seule fois, évite 3 s à chaque rerun."""
+    if _db_module.USE_PG:
+        try:
+            conn = _db_module.get_conn()
+            _db_module.release(conn)
+        except Exception:
+            pass
+    return True
+_warmup_pool()
+
+@st.cache_data(ttl=30)
+def _cached_get_agent(aid):
+    return get_agent_by_id(int(aid))
+
+@st.cache_data(ttl=30)
+def _cached_search_agents(q):
+    return search_agents(q)
+
+@st.cache_data(ttl=20)
+def _cached_get_quiz_by_code(code):
+    return get_quiz_by_code(code)
+
+@st.cache_data(ttl=20)
+def _cached_get_all_quizzes():
+    return get_all_quizzes()
+
+@st.cache_data(ttl=20)
+def _cached_get_stats():
+    return get_stats()
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -259,7 +295,7 @@ def _restore_state():
 
         # Restaurer l'agent
         if "a" in qp and not st.session_state.current_agent:
-            agent = get_agent_by_id(int(qp["a"]))
+            agent = _cached_get_agent(qp["a"])
             if agent:
                 st.session_state.current_agent = agent
 
@@ -500,7 +536,8 @@ def render_agent_search():
     if len(q)<2:
         if len(q)==1: st.caption("Continuez à taper…")
         return
-    agents = search_agents(q)
+    with st.spinner("Chargement…"):
+        agents = _cached_search_agents(q)
     if not agents:
         st.warning("Aucun agent trouvé. Vérifiez l'orthographe ou contactez votre superviseur.")
         return
@@ -539,7 +576,8 @@ def render_agent_quiz_code():
 
 def _start_quiz(agent, code):
     if not (code or "").strip(): st.warning("Saisissez un code."); return
-    quiz=get_quiz_by_code(code.strip())
+    with st.spinner("Chargement du quiz…"):
+        quiz=_cached_get_quiz_by_code(code.strip())
     if not quiz: st.error("Code incorrect ou quiz désactivé."); return
 
     # ── Vérifier session en cours (pour restore après refresh) ──
@@ -804,8 +842,20 @@ def render_admin_login():
         if st.button("← Retour",key="al_back",use_container_width=True): go("home")
     with c2:
         if st.button("Se connecter",key="al_login",type="primary",use_container_width=True):
-            if pwd==config.ADMIN_PASSWORD: st.session_state.admin_logged=True; _save_state(); go("admin_dashboard")
-            else: st.error("Mot de passe incorrect.")
+            fails = st.session_state.get("admin_fails", 0)
+            if fails >= 5:
+                st.error("Trop de tentatives. Réessayez plus tard.")
+                st.stop()
+            elif not pwd:
+                st.warning("Saisissez le mot de passe.")
+            elif _hmac.compare_digest(pwd, config.ADMIN_PASSWORD):
+                st.session_state.admin_logged=True
+                st.session_state.admin_fails=0
+                _save_state(); go("admin_dashboard")
+            else:
+                st.session_state.admin_fails = fails + 1
+                time.sleep(min(2 ** fails, 30))
+                st.error("Mot de passe incorrect.")
     st.markdown('</div>',unsafe_allow_html=True)
 
 
@@ -832,7 +882,7 @@ def render_admin_dashboard():
 # ── Vue d'ensemble ────────────────────────────────────────────
 
 def _tab_overview():
-    stats=get_stats()
+    stats=_cached_get_stats()
 
     kpi_grid([
         ("👥", stats["total_agents"],   "Agents total",  "b"),
@@ -879,12 +929,12 @@ def _tab_overview():
             init_r=(r["nom"][0]+(r["prenom"][0] if r["prenom"] else "")).upper()
             # Format time
             try:
-                dt=r["completed_at"] if hasattr(r["completed_at"],"strftime") else datetime.fromisoformat(str(r["completed_at"]))
+                dt=datetime.fromisoformat(r["completed_at"])
                 diff=datetime.now()-dt
                 if diff.seconds<3600:    tstr=f"Il y a {diff.seconds//60} min"
                 elif diff.days==0:       tstr=f"Il y a {diff.seconds//3600}h"
                 else:                    tstr=dt.strftime("%d/%m %H:%M")
-            except: tstr=str(r["completed_at"])[:16] if r["completed_at"] else "—"
+            except: tstr=r["completed_at"][:16] if r["completed_at"] else "—"
             items+=(f'<div class="activity-item">'
                     f'<div class="act-av">{init_r}</div>'
                     f'<div><div class="act-name">{r["nom"]} {r["prenom"]}</div>'
@@ -995,7 +1045,7 @@ def _tab_quizzes():
     if st.button("➕  Créer un quiz",key="qz_create_quiz",type="primary",use_container_width=True):
         st.session_state.edit_quiz_id=None; go("admin_quiz_edit")
     st.markdown("---")
-    quizzes=get_all_quizzes()
+    quizzes=_cached_get_all_quizzes()
     if not quizzes: st.info("Aucun quiz."); return
     for quiz in quizzes:
         nb=len(get_questions(quiz["id"]))
@@ -1030,7 +1080,7 @@ def _tab_quizzes():
 # ── Résultats ─────────────────────────────────────────────────
 
 def _tab_results():
-    quizzes = get_all_quizzes()
+    quizzes = _cached_get_all_quizzes()
     opts = {0: "— Tous les quiz —"}
     opts.update({q["id"]: f"{q['titre']} ({q['code']})" for q in quizzes})
     sel = st.selectbox("Quiz", list(opts.keys()), format_func=lambda x: opts[x],
@@ -1045,7 +1095,7 @@ def _tab_results():
     df["agent"] = df["nom"] + " " + df["prenom"]
     disp = df[["agent","matricule","quiz_titre","score","max_score","pct","completed_at"]].copy()
     disp.columns = ["Agent","Matricule","Quiz","Score","Sur","%","Date"]
-    st.dataframe(disp, use_container_width=True)
+    st.dataframe(disp, use_container_width=True, hide_index=True)
 
     # ── Export choix ──
     mode = st.radio("Export", ["Résumé uniquement", "Avec réponses par question"],
@@ -1158,7 +1208,7 @@ def _strip_html(text):
 
 
 def _tab_question_stats():
-    quizzes = get_all_quizzes()
+    quizzes = _cached_get_all_quizzes()
     opts = {0: "— Tous les quiz —"}
     opts.update({q["id"]: f"{q['titre']} ({q['code']})" for q in quizzes})
     sel = st.selectbox("Filtrer par quiz", list(opts.keys()), format_func=lambda x: opts[x],
@@ -1422,7 +1472,7 @@ def render_admin_quiz_edit():
 # ══════════════════════════════════════════════════════════════
 
 def _tab_surveillance():
-    quizzes=get_all_quizzes()
+    quizzes=_cached_get_all_quizzes()
     if not quizzes: st.info("Aucun quiz."); return
     opts={0:"— Tous —"}; opts.update({q["id"]:f"{q['titre']} ({q['code']})" for q in quizzes})
     sel=st.selectbox(" ",list(opts.keys()),format_func=lambda x:opts[x],label_visibility="collapsed",key="surv_sel")

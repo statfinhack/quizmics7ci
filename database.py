@@ -348,8 +348,15 @@ def delete_quiz(qid):
 
 def get_questions(qid, shuffled=False):
     qs = _fetchall("SELECT * FROM questions WHERE quiz_id=? ORDER BY ordre", (qid,))
-    for q in qs:
-        q["options"] = _fetchall("SELECT * FROM options WHERE question_id=?", (q["id"],))
+    if qs:
+        q_ids = tuple(q["id"] for q in qs)
+        ph = ",".join(["?"] * len(q_ids))
+        opts = _fetchall(f"SELECT * FROM options WHERE question_id IN ({ph}) ORDER BY question_id,id", q_ids)
+        opts_map = {}
+        for o in opts:
+            opts_map.setdefault(o["question_id"], []).append(o)
+        for q in qs:
+            q["options"] = opts_map.get(q["id"], [])
     if shuffled: random.shuffle(qs)
     return qs
 
@@ -440,12 +447,20 @@ def get_stats():
 
 def get_question_stats(quiz_id):
     questions = get_questions(quiz_id)
+    if not questions:
+        return []
+    q_ids = tuple(q["id"] for q in questions)
+    ph = ",".join(["?"] * len(q_ids))
+    stats_rows = _fetchall(
+        f"SELECT question_id, COUNT(*) as tot, SUM(CASE WHEN is_correct=1 THEN 1 ELSE 0 END) as cor "
+        f"FROM answers WHERE question_id IN ({ph}) GROUP BY question_id",
+        q_ids)
+    stats_map = {r["question_id"]: r for r in stats_rows}
     out = []
     for i, q in enumerate(questions):
-        tot = _fetchone("SELECT COUNT(*) as n FROM answers WHERE question_id=?", (q["id"],))
-        cor = _fetchone("SELECT COUNT(*) as n FROM answers WHERE question_id=? AND is_correct=1", (q["id"],))
-        t = int(list(tot.values())[0]) if tot else 0
-        c = int(list(cor.values())[0]) if cor else 0
+        sr = stats_map.get(q["id"])
+        t = int(sr["tot"]) if sr else 0
+        c = int(sr["cor"]) if sr else 0
         out.append({"num":i+1,"question_id":q["id"],"texte":q["texte"],"type":q["type"],
                     "points":q["points"],"total_reponses":t,"bonnes_reponses":c,
                     "mauvaises_reponses":t-c,"taux_erreur":round(((t-c)/t*100) if t>0 else 0,1)})
