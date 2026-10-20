@@ -1080,9 +1080,12 @@ def _tab_quizzes():
             with c1:
                 if st.button("✏️ Modifier",key=f"eq_{quiz['id']}",use_container_width=True): st.session_state.edit_quiz_id=quiz["id"]; go("admin_quiz_edit")
             with c2:
-                if st.button("🟢 Activer" if not quiz["actif"] else "🔴 Désactiver",key=f"tq_{quiz['id']}",use_container_width=True):
-                    update_quiz(quiz["id"],quiz["titre"],quiz["code"],quiz["duree_minutes"],quiz["description"],0 if quiz["actif"] else 1,quiz.get("show_score",1),quiz.get("randomize_questions",0))
-                    import time; time.sleep(0.6); st.rerun()
+                _actif_now = st.session_state.get(f"_actif_{quiz['id']}", quiz["actif"])
+                if st.button("🟢 Activer" if not _actif_now else "🔴 Désactiver",key=f"tq_{quiz['id']}",use_container_width=True):
+                    _new = 0 if _actif_now else 1
+                    update_quiz(quiz["id"],quiz["titre"],quiz["code"],quiz["duree_minutes"],quiz["description"],_new,quiz.get("show_score",1),quiz.get("randomize_questions",0))
+                    st.session_state[f"_actif_{quiz['id']}"] = bool(_new)
+                    st.rerun()
             with c3:
                 if st.button("🗑 Suppr.",key=f"dq_{quiz['id']}",use_container_width=True): delete_quiz(quiz["id"]); st.rerun()
             # Export PDF corrigé
