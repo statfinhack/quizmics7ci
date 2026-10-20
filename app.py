@@ -219,6 +219,11 @@ hr{border:none!important;border-top:1.5px solid var(--bor)!important;margin:18px
 
 @st.cache_resource
 def _init_db_once():
+    import os
+    db_url = os.environ.get("DATABASE_URL","")
+    import database as _dbm
+    backend = "PostgreSQL/Supabase" if _dbm.USE_PG else "SQLite (LOCAL — DONNÉES ÉPHÉMÈRES)"
+    print(f"[QuizAgent] Backend DB: {backend} | DATABASE_URL définie: {'OUI' if db_url else 'NON'}")
     init_db()
 _init_db_once()
 
@@ -1076,7 +1081,8 @@ def _tab_quizzes():
                 if st.button("✏️ Modifier",key=f"eq_{quiz['id']}",use_container_width=True): st.session_state.edit_quiz_id=quiz["id"]; go("admin_quiz_edit")
             with c2:
                 if st.button("🟢 Activer" if not quiz["actif"] else "🔴 Désactiver",key=f"tq_{quiz['id']}",use_container_width=True):
-                    update_quiz(quiz["id"],quiz["titre"],quiz["code"],quiz["duree_minutes"],quiz["description"],0 if quiz["actif"] else 1,quiz.get("show_score",1),quiz.get("randomize_questions",0)); st.rerun()
+                    update_quiz(quiz["id"],quiz["titre"],quiz["code"],quiz["duree_minutes"],quiz["description"],0 if quiz["actif"] else 1,quiz.get("show_score",1),quiz.get("randomize_questions",0))
+                    import time; time.sleep(0.6); st.rerun()
             with c3:
                 if st.button("🗑 Suppr.",key=f"dq_{quiz['id']}",use_container_width=True): delete_quiz(quiz["id"]); st.rerun()
             # Export PDF corrigé
