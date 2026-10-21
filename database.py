@@ -295,10 +295,15 @@ def upsert_agents(df):
         conn = get_conn()
         try:
             with conn.cursor() as c:
-                # Récupérer tous les (nom,prenom) existants en une requête
-                c.execute("SELECT nom, prenom FROM agents")
-                existing = {(r[0], r[1]) for r in c.fetchall()}
-                news = [(n, p, m) for n, p, m in rows if (n, p) not in existing]
+                # Récupérer tous les matricules existants (et (nom,prenom) si matricule vide)
+                c.execute("SELECT nom, prenom, matricule FROM agents")
+                ex_mat = {r[2] for r in c.fetchall() if r[2]}
+                c.execute("SELECT nom, prenom FROM agents WHERE matricule='' OR matricule IS NULL")
+                ex_np  = {(r[0], r[1]) for r in c.fetchall()}
+                def _is_new(n, p, m):
+                    if m: return m not in ex_mat
+                    return (n, p) not in ex_np
+                news = [(n, p, m) for n, p, m in rows if _is_new(n, p, m)]
                 if news:
                     c.executemany(
                         "INSERT INTO agents (nom, prenom, matricule) VALUES (%s, %s, %s)",
@@ -310,8 +315,12 @@ def upsert_agents(df):
     else:
         # SQLite : même logique bulk
         conn = get_conn()
-        existing = {(r[0], r[1]) for r in conn.execute("SELECT nom, prenom FROM agents").fetchall()}
-        news = [(n, p, m) for n, p, m in rows if (n, p) not in existing]
+        ex_mat = {r[2] for r in conn.execute("SELECT matricule FROM agents WHERE matricule!='' AND matricule IS NOT NULL").fetchall()}
+        ex_np  = {(r[0], r[1]) for r in conn.execute("SELECT nom, prenom FROM agents WHERE matricule='' OR matricule IS NULL").fetchall()}
+        def _is_new(n, p, m):
+            if m: return m not in ex_mat
+            return (n, p) not in ex_np
+        news = [(n, p, m) for n, p, m in rows if _is_new(n, p, m)]
         if news:
             conn.executemany("INSERT INTO agents (nom, prenom, matricule) VALUES (?, ?, ?)", news)
             conn.commit()
