@@ -277,8 +277,7 @@ def get_agent_by_id(aid):
     return _fetchone("SELECT * FROM agents WHERE id=?", (aid,))
 
 def upsert_agents(df):
-    # 1. Préparer les lignes valides
-    rows = []
+    n = 0
     for _, row in df.iterrows():
         nom = str(row.get("nom","")).strip()
         pre = str(row.get("prenom","")).strip()
@@ -286,27 +285,11 @@ def upsert_agents(df):
         if not nom or nom.lower()=="nan": continue
         if pre.lower()=="nan": pre=""
         if mat.lower()=="nan": mat=""
-        rows.append((nom, pre, mat))
-    if not rows:
-        return 0
-
-    if USE_PG:
-        conn = get_conn()
-        try:
-            with conn.cursor() as c:
-                c.executemany(
-                    "INSERT INTO agents (nom, prenom, matricule) VALUES (%s, %s, %s)",
-                    rows)
-            conn.commit()
-        finally:
-            release(conn)
-    else:
-        conn = get_conn()
-        conn.executemany(
-            "INSERT INTO agents (nom, prenom, matricule) VALUES (?, ?, ?)", rows)
-        conn.commit()
-        conn.close()
-    return len(rows)
+        exists = _fetchone("SELECT id FROM agents WHERE nom=? AND prenom=?", (nom, pre))
+        if not exists:
+            _execute("INSERT INTO agents (nom,prenom,matricule) VALUES (?,?,?)", (nom, pre, mat))
+            n += 1
+    return n
 
 def set_agent_published(aid, pub):
     _run("UPDATE agents SET published=? WHERE id=?", (pub, aid))
