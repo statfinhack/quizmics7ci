@@ -291,21 +291,21 @@ def upsert_agents(df):
         return 0
 
     if USE_PG:
-        # Bulk : une seule connexion, un seul SELECT, un seul executemany INSERT
         conn = get_conn()
         try:
-            with conn.cursor() as c:
-                # Récupérer tous les matricules existants (et (nom,prenom) si matricule vide)
-                c.execute("SELECT nom, prenom, matricule FROM agents")
-                ex_mat = {r[2] for r in c.fetchall() if r[2]}
-                c.execute("SELECT nom, prenom FROM agents WHERE matricule='' OR matricule IS NULL")
-                ex_np  = {(r[0], r[1]) for r in c.fetchall()}
-                def _is_new(n, p, m):
-                    if m: return m not in ex_mat
-                    return (n, p) not in ex_np
-                news = [(n, p, m) for n, p, m in rows if _is_new(n, p, m)]
-                if news:
-                    c.executemany(
+            # SELECT unique : tout en une requête, deux curseurs séparés
+            with conn.cursor() as c1:
+                c1.execute("SELECT nom, prenom, matricule FROM agents")
+                all_existing = c1.fetchall()
+            ex_mat = {r[2] for r in all_existing if r[2]}
+            ex_np  = {(r[0], r[1]) for r in all_existing if not r[2]}
+            def _is_new(n, p, m):
+                if m: return m not in ex_mat
+                return (n, p) not in ex_np
+            news = [(n, p, m) for n, p, m in rows if _is_new(n, p, m)]
+            if news:
+                with conn.cursor() as c2:
+                    c2.executemany(
                         "INSERT INTO agents (nom, prenom, matricule) VALUES (%s, %s, %s)",
                         news)
             conn.commit()
