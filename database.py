@@ -293,39 +293,20 @@ def upsert_agents(df):
     if USE_PG:
         conn = get_conn()
         try:
-            # SELECT unique : tout en une requête, deux curseurs séparés
-            with conn.cursor() as c1:
-                c1.execute("SELECT nom, prenom, matricule FROM agents")
-                all_existing = c1.fetchall()
-            ex_mat = {r[2] for r in all_existing if r[2]}
-            ex_np  = {(r[0], r[1]) for r in all_existing if not r[2]}
-            def _is_new(n, p, m):
-                if m: return m not in ex_mat
-                return (n, p) not in ex_np
-            news = [(n, p, m) for n, p, m in rows if _is_new(n, p, m)]
-            if news:
-                with conn.cursor() as c2:
-                    c2.executemany(
-                        "INSERT INTO agents (nom, prenom, matricule) VALUES (%s, %s, %s)",
-                        news)
+            with conn.cursor() as c:
+                c.executemany(
+                    "INSERT INTO agents (nom, prenom, matricule) VALUES (%s, %s, %s)",
+                    rows)
             conn.commit()
         finally:
             release(conn)
-        return len(news)
     else:
-        # SQLite : même logique bulk
         conn = get_conn()
-        ex_mat = {r[2] for r in conn.execute("SELECT matricule FROM agents WHERE matricule!='' AND matricule IS NOT NULL").fetchall()}
-        ex_np  = {(r[0], r[1]) for r in conn.execute("SELECT nom, prenom FROM agents WHERE matricule='' OR matricule IS NULL").fetchall()}
-        def _is_new(n, p, m):
-            if m: return m not in ex_mat
-            return (n, p) not in ex_np
-        news = [(n, p, m) for n, p, m in rows if _is_new(n, p, m)]
-        if news:
-            conn.executemany("INSERT INTO agents (nom, prenom, matricule) VALUES (?, ?, ?)", news)
-            conn.commit()
+        conn.executemany(
+            "INSERT INTO agents (nom, prenom, matricule) VALUES (?, ?, ?)", rows)
+        conn.commit()
         conn.close()
-        return len(news)
+    return len(rows)
 
 def set_agent_published(aid, pub):
     _run("UPDATE agents SET published=? WHERE id=?", (pub, aid))
