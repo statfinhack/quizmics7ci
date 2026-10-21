@@ -277,7 +277,8 @@ def get_agent_by_id(aid):
     return _fetchone("SELECT * FROM agents WHERE id=?", (aid,))
 
 def upsert_agents(df):
-    n = 0
+    # 1. Préparer les lignes valides
+    rows = []
     for _, row in df.iterrows():
         nom = str(row.get("nom","")).strip()
         pre = str(row.get("prenom","")).strip()
@@ -285,11 +286,37 @@ def upsert_agents(df):
         if not nom or nom.lower()=="nan": continue
         if pre.lower()=="nan": pre=""
         if mat.lower()=="nan": mat=""
-        exists = _fetchone("SELECT id FROM agents WHERE nom=? AND prenom=?", (nom, pre))
-        if not exists:
-            _execute("INSERT INTO agents (nom,prenom,matricule) VALUES (?,?,?)", (nom, pre, mat))
-            n += 1
-    return n
+        rows.append((nom, pre, mat))
+    if not rows:
+        return 0
+
+    if USE_PG:
+        # Bulk : une seule connexion, un seul SELECT, un seul executemany INSERT
+        conn = get_conn()
+        try:
+            with conn.cursor() as c:
+                # Récupérer tous les (nom,prenom) existants en une requête
+                c.execute("SELECT nom, prenom FROM agents")
+                existing = {(r[0], r[1]) for r in c.fetchall()}
+                news = [(n, p, m) for n, p, m in rows if (n, p) not in existing]
+                if news:
+                    c.executemany(
+                        "INSERT INTO agents (nom, prenom, matricule) VALUES (%s, %s, %s)",
+                        news)
+            conn.commit()
+        finally:
+            release(conn)
+        return len(news)
+    else:
+        # SQLite : même logique bulk
+        conn = get_conn()
+        existing = {(r[0], r[1]) for r in conn.execute("SELECT nom, prenom FROM agents").fetchall()}
+        news = [(n, p, m) for n, p, m in rows if (n, p) not in existing]
+        if news:
+            conn.executemany("INSERT INTO agents (nom, prenom, matricule) VALUES (?, ?, ?)", news)
+            conn.commit()
+        conn.close()
+        return len(news)
 
 def set_agent_published(aid, pub):
     _run("UPDATE agents SET published=? WHERE id=?", (pub, aid))
