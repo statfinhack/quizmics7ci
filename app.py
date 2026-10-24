@@ -600,6 +600,16 @@ def render_agent_search():
     with st.spinner("Chargement…"):
         agents = _cached_search_agents(q)
     if not agents:
+        # Vérifier si l'agent existe mais n'est pas encore publié
+        try:
+            from database import search_unpublished_agents as _search_unp
+            unp = _search_unp(q)
+            if unp:
+                noms = ", ".join(f"{a['nom']} {a['prenom']}".strip() for a in unp[:3])
+                st.error(f"⛔ Votre compte n'est pas encore activé pour composer un quiz. Contactez votre superviseur. ({noms})")
+                return
+        except Exception:
+            pass
         st.warning("Aucun agent trouvé. Vérifiez l'orthographe ou contactez votre superviseur.")
         return
     slbl(f"{len(agents)} résultat(s) — appuyez sur votre nom")

@@ -210,6 +210,7 @@ def init_db():
     _safe_alter("quizzes",  "show_correction",     "INTEGER DEFAULT 0")
     _safe_alter("questions","image_url",           "TEXT DEFAULT ''")
     _safe_alter("quizzes",  "anticheat_max",       "INTEGER DEFAULT 3")
+    _safe_alter("sessions", "started_at",          "TEXT DEFAULT CURRENT_TIMESTAMP")
 
     release(conn)
 
@@ -268,6 +269,13 @@ def search_agents(q):
     p = f"%{q.lower()}%"
     return _fetchall(
         "SELECT * FROM agents WHERE published=1 AND (LOWER(nom) LIKE ? OR LOWER(prenom) LIKE ? OR LOWER(matricule) LIKE ?) ORDER BY nom,prenom",
+        (p, p, p))
+
+def search_unpublished_agents(q):
+    """Vérifie si un nom correspond à des agents non-publiés (pour message d'erreur explicite)."""
+    p = f"%{q.lower()}%"
+    return _fetchall(
+        "SELECT id,nom,prenom,matricule FROM agents WHERE published=0 AND (LOWER(nom) LIKE ? OR LOWER(prenom) LIKE ? OR LOWER(matricule) LIKE ?) ORDER BY nom,prenom",
         (p, p, p))
 
 def get_all_agents():
