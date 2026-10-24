@@ -212,6 +212,16 @@ async function supabase(path, opts = {}) {
   return r.json();
 }
 
+// ── Horloge serveur (évite les écarts entre téléphones) ──
+async function serverOffset() {
+  try {
+    const t0 = Date.now()/1000;
+    const sn = await supabase("rpc/server_now", { method: "POST", body: {} });
+    const t1 = Date.now()/1000;
+    return parseFloat(sn) - (t0 + t1) / 2;
+  } catch(e) { return 0; }
+}
+
 // ── Recherche ──
 document.getElementById("search-input").addEventListener("input", function() {
   clearTimeout(searchTimer);
@@ -304,48 +314,47 @@ async function startQuiz() {
       warnEl.classList.add("show"); return;
     }
 
-    // Chercher session incomplète existante
-    const incomplete = await supabase(`sessions?agent_id=eq.${selectedAgent.id}&quiz_id=eq.${quiz.id}&completed=eq.0&order=started_at.desc&limit=1`);
+    // Chercher session incomplète existante : on la REPREND TOUJOURS (même appareil ou non).
+    // Le temps écoulé court depuis le tout premier démarrage, jamais remis à zéro.
+    const offset = await serverOffset();
+    const nowSrv = Date.now()/1000 + offset;
+    const incomplete = await supabase(`sessions?agent_id=eq.${selectedAgent.id}&quiz_id=eq.${quiz.id}&completed=eq.0&order=id.asc&limit=1`);
     let sessionId = null;
-    let startEpoch = Date.now() / 1000;
+    let startEpoch = nowSrv;
 
     if (incomplete && incomplete.length > 0) {
       const sess = incomplete[0];
-      const epoch = parseFloat(sess.start_time_epoch || startEpoch);
-      const remaining = quiz.duree_minutes * 60 - (Date.now() / 1000 - epoch);
-      if (remaining > 15) {
-        sessionId = sess.id;
-        startEpoch = epoch;
-
-        // ── SURVEILLANCE : enregistrer immédiatement cet appareil ──
-        // Même si c'est le même agent qui reprend, on trace chaque connexion
-        try {
-          let existingLog = [];
-          try { existingLog = JSON.parse(sess.devices_log || "[]"); } catch(e) {}
-          if (!existingLog.includes(START_DEVICE)) {
-            existingLog.push(START_DEVICE);
-          }
-          // Patch immédiat — avant même d'ouvrir quiz.html
-          await supabase(`sessions?id=eq.${sessionId}`, {
-            method: "PATCH",
-            body: { devices_log: JSON.stringify(existingLog) }
-          });
-        } catch(e) {}
+      sessionId = sess.id;
+      if (sess.start_time_epoch) {
+        startEpoch = parseFloat(sess.start_time_epoch);
+      } else {
+        // ancienne ligne sans heure de départ : on la fixe maintenant (une seule fois)
+        await supabase(`sessions?id=eq.${sessionId}`, { method: "PATCH", body: { start_time_epoch: nowSrv } });
       }
+      // SURVEILLANCE : tracer cet appareil
+      try {
+        let existingLog = [];
+        try { existingLog = JSON.parse(sess.devices_log || "[]"); } catch(e) {}
+        if (!existingLog.includes(START_DEVICE)) existingLog.push(START_DEVICE);
+        await supabase(`sessions?id=eq.${sessionId}`, { method: "PATCH", body: { devices_log: JSON.stringify(existingLog) } });
+      } catch(e) {}
     }
 
     if (!sessionId) {
-      const maxScore = 0;
+      // start_time_epoch est posé par la base (heure serveur) : on ne l'envoie pas
       const newSess = await supabase("sessions", {
         method: "POST",
-        body: { agent_id: selectedAgent.id, quiz_id: quiz.id, max_score: maxScore,
-                start_time_epoch: startEpoch, answers_json: "{}", completed: 0,
+        body: { agent_id: selectedAgent.id, quiz_id: quiz.id, max_score: 0,
+                answers_json: "{}", completed: 0,
                 start_device_info: START_DEVICE, start_ip_address: START_IP,
                 device_info: START_DEVICE, ip_address: START_IP,
                 devices_log: JSON.stringify([START_DEVICE]) }
       });
-      sessionId = Array.isArray(newSess) ? newSess[0].id : newSess.id;
+      const row = Array.isArray(newSess) ? newSess[0] : newSess;
+      sessionId = row.id;
+      if (row.start_time_epoch) startEpoch = parseFloat(row.start_time_epoch);
     }
+    sessionStorage.setItem("qa_clock_offset", offset);
 
     // Stocker en sessionStorage (avec devices_log pour quiz.html)
     sessionStorage.setItem("qa_agent", JSON.stringify(selectedAgent));
