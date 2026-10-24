@@ -310,42 +310,21 @@ def _save_state():
 
 
 def _resolve_session_epoch(sess):
-    """Retourne l'epoch de début réel d'une session, résistant aux valeurs corrompues.
+    """Retourne start_time_epoch de la session.
 
-    Stratégie :
-    1. Utilise start_time_epoch s'il est cohérent avec started_at (≤ 30 s d'écart).
-    2. Sinon utilise started_at (jamais écrasé) comme référence de secours.
-    Cela corrige le cas où l'ancien code sauvegardait time.time() de restauration
-    à la place de l'epoch d'origine, ce qui faisait afficher 15 min au retour.
+    Ce champ est écrit une seule fois à la création (create_session) et
+    n'est JAMAIS écrasé par l'auto-save depuis que save_quiz_answers est
+    utilisé. On le retourne directement sans tentative de validation contre
+    started_at (started_at peut valoir l'heure de migration sur les vieilles
+    lignes, ce qui fausserait la comparaison).
     """
-    import re as _re
-    ref_epoch = None
-    started_at = sess.get("started_at")
-    if started_at:
-        try:
-            from datetime import datetime, timezone as _tz
-            s = str(started_at).strip()
-            s = _re.sub(r'\+(\d{2})$', r'+\1:00', s)   # +00 → +00:00
-            s = s.replace("Z", "+00:00").replace(" ", "T")
-            dt = datetime.fromisoformat(s)
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=_tz.utc)
-            ref_epoch = dt.timestamp()
-        except Exception:
-            pass
-
     raw = sess.get("start_time_epoch")
     if raw is not None:
         try:
-            candidate = float(raw)
-            # Valide si proche de started_at (≤ 30 s) → epoch d'origine intact
-            if ref_epoch is None or abs(candidate - ref_epoch) <= 30:
-                return candidate
-            # Sinon corrompue (timestamp de restauration sauvé par ancien code) → ignorer
+            return float(raw)
         except (TypeError, ValueError):
             pass
-
-    return ref_epoch  # None si started_at absent ou illisible
+    return None
 
 
 def _restore_state():
@@ -627,6 +606,11 @@ def render_agent_search():
 def render_agent_quiz_code():
     agent=st.session_state.current_agent
     if not agent: go("agent_search"); return
+    # ── Blocage des agents non-publiés dès la page de saisie du code ──
+    if not agent.get("published"):
+        st.error("⛔ Votre compte n'est pas encore activé. Contactez votre superviseur.")
+        if st.button("← Retour",key="aqc_pub_back"): go("home")
+        return
     topbar("Accès au Quiz","📋")
     init=(agent["nom"][0]+(agent["prenom"][0] if agent["prenom"] else "")).upper()
     st.markdown(
