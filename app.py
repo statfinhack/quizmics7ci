@@ -342,11 +342,13 @@ def _restore_state():
                         answers = {int(k) if str(k).isdigit() else k: v for k,v in answers.items()}
                     except Exception:
                         answers = {}
-                    remaining = quiz["duree_minutes"]*60 - (time.time() - float(sess.get("start_time_epoch") or time.time()))
+                    _epoch_raw = sess.get("start_time_epoch")
+                    _epoch = float(_epoch_raw) if _epoch_raw else 0
+                    remaining = max(0, min(quiz["duree_minutes"]*60 - (time.time() - _epoch), quiz["duree_minutes"]*60)) if _epoch > 0 else 0
                     if remaining > 10:
                         st.session_state.current_quiz = quiz
                         st.session_state.quiz_questions = questions
-                        st.session_state.quiz_start_time = float(sess.get("start_time_epoch") or time.time())
+                        st.session_state.quiz_start_time = _epoch
                         st.session_state.quiz_answers = answers
                         st.session_state.session_id = sid
                         st.session_state.page = "agent_quiz"
@@ -604,9 +606,9 @@ def _start_quiz(agent, code):
     # ── Vérifier session en cours (pour restore après refresh) ──
     incomplete=get_incomplete_session(agent["id"],quiz["id"])
     if incomplete and incomplete.get("start_time_epoch"):
-        epoch=incomplete["start_time_epoch"]
-        remaining=quiz["duree_minutes"]*60-(time.time()-epoch)
-        if remaining>15:  # encore du temps
+        epoch=float(incomplete["start_time_epoch"])
+        remaining=max(0, min(quiz["duree_minutes"]*60-(time.time()-epoch), quiz["duree_minutes"]*60))
+        if 5 < remaining:  # encore du temps (et valeur cohérente)
             try:
                 raw=incomplete.get("answers_json") or "{}"
                 answers=json.loads(raw)
@@ -1080,9 +1082,12 @@ def _tab_quizzes():
             with c1:
                 if st.button("✏️ Modifier",key=f"eq_{quiz['id']}",use_container_width=True): st.session_state.edit_quiz_id=quiz["id"]; go("admin_quiz_edit")
             with c2:
-                if st.button("🟢 Activer" if not quiz["actif"] else "🔴 Désactiver",key=f"tq_{quiz['id']}",use_container_width=True):
-                    update_quiz(quiz["id"],quiz["titre"],quiz["code"],quiz["duree_minutes"],quiz["description"],0 if quiz["actif"] else 1,quiz.get("show_score",1),quiz.get("randomize_questions",0))
-                    import time; time.sleep(0.6); st.rerun()
+                _actif_now = st.session_state.get(f"_actif_{quiz['id']}", quiz["actif"])
+                if st.button("🟢 Activer" if not _actif_now else "🔴 Désactiver",key=f"tq_{quiz['id']}",use_container_width=True):
+                    _new = 0 if _actif_now else 1
+                    update_quiz(quiz["id"],quiz["titre"],quiz["code"],quiz["duree_minutes"],quiz["description"],_new,quiz.get("show_score",1),quiz.get("randomize_questions",0))
+                    st.session_state[f"_actif_{quiz['id']}"] = bool(_new)
+                    st.rerun()
             with c3:
                 if st.button("🗑 Suppr.",key=f"dq_{quiz['id']}",use_container_width=True): delete_quiz(quiz["id"]); st.rerun()
             # Export PDF corrigé
