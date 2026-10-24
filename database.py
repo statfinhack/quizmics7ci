@@ -430,8 +430,10 @@ def save_quiz_answers(session_id, answers_json_str):
          (answers_json_str, session_id))
 
 def get_incomplete_session(agent_id, quiz_id):
+    # ORDER BY id DESC : utilise la clé primaire (toujours présente) pour éviter
+    # un échec silencieux si la colonne started_at n'existe pas encore en prod.
     return _fetchone(
-        "SELECT * FROM sessions WHERE agent_id=? AND quiz_id=? AND completed=0 ORDER BY started_at DESC LIMIT 1",
+        "SELECT * FROM sessions WHERE agent_id=? AND quiz_id=? AND completed=0 ORDER BY id DESC LIMIT 1",
         (agent_id, quiz_id))
 
 def submit_session(session_id, score, records, device_info=None, ip_address=None, quit_count=None, devices_log=None):
