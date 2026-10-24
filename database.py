@@ -3,7 +3,8 @@ database.py — QuizAgent CI
 Backend PostgreSQL (Supabase) avec fallback SQLite pour dev local.
 """
 import os, json, random
-from datetime import datetime
+from datetime import datetime, date
+from decimal import Decimal
 
 # ── Détection du backend ──────────────────────────────────────────────────────
 # Si DATABASE_URL est défini → PostgreSQL (Supabase)
@@ -141,7 +142,14 @@ else:
 def _row(r):
     """Convertit un résultat (Row SQLite ou dict PG) en dict Python."""
     if r is None: return None
-    return dict(r)
+    d = dict(r)
+    # PostgreSQL renvoie des datetime/Decimal : on les convertit pour que tout le code
+    # (qui manipule des chaînes ISO et des floats) fonctionne avec TIMESTAMP comme avec TEXT.
+    for k, v in d.items():
+        if isinstance(v, datetime): d[k] = v.isoformat()
+        elif isinstance(v, date):   d[k] = v.isoformat()
+        elif isinstance(v, Decimal): d[k] = float(v)
+    return d
 
 
 # ── Initialisation des tables ─────────────────────────────────────────────────
@@ -238,6 +246,10 @@ def _fetchall(sql, params=None):
         c = _cursor(conn)
         c.execute(sql, params or ())
         return [_row(r) for r in c.fetchall()]
+    except Exception:
+        try: conn.rollback()
+        except Exception: pass
+        raise
     finally:
         release(conn)
 
@@ -247,6 +259,10 @@ def _fetchone(sql, params=None):
         c = _cursor(conn)
         c.execute(sql, params or ())
         return _row(c.fetchone())
+    except Exception:
+        try: conn.rollback()
+        except Exception: pass
+        raise
     finally:
         release(conn)
 
@@ -375,6 +391,11 @@ def reorder_questions(qid):
 # ── SESSIONS ──────────────────────────────────────────────────────────────────
 
 def create_session(agent_id, quiz_id, max_score, start_time_epoch):
+    existing = _fetchone(
+        "SELECT id FROM sessions WHERE agent_id=? AND quiz_id=? AND completed=0 ORDER BY id ASC LIMIT 1",
+        (agent_id, quiz_id))
+    if existing:
+        return existing["id"]
     return _execute(
         "INSERT INTO sessions (agent_id,quiz_id,max_score,start_time_epoch,answers_json) VALUES (?,?,?,?,'{}')",
         (agent_id, quiz_id, max_score, start_time_epoch))
@@ -391,7 +412,7 @@ def save_quiz_progress(session_id, answers_json_str, start_time_epoch=None, devi
 
 def get_incomplete_session(agent_id, quiz_id):
     return _fetchone(
-        "SELECT * FROM sessions WHERE agent_id=? AND quiz_id=? AND completed=0 ORDER BY started_at DESC LIMIT 1",
+        "SELECT * FROM sessions WHERE agent_id=? AND quiz_id=? AND completed=0 ORDER BY id ASC LIMIT 1",
         (agent_id, quiz_id))
 
 def submit_session(session_id, score, records, device_info=None, ip_address=None, quit_count=None, devices_log=None):

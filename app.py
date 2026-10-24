@@ -557,6 +557,7 @@ def _start_quiz(agent, code):
     incomplete=get_incomplete_session(agent["id"],quiz["id"])
     if incomplete:
         epoch=_epoch_of(incomplete)
+        print(f"[QuizAgent] reprise session {incomplete['id']} départ={epoch:.0f} reste={quiz['duree_minutes']*60-(time.time()-epoch):.0f}s")
         remaining=quiz["duree_minutes"]*60-(time.time()-epoch)
         if remaining>15:  # encore du temps
             try:
@@ -597,6 +598,9 @@ def _start_quiz(agent, code):
     max_score=sum(q["points"] for q in questions)
     epoch=time.time()
     sid=create_session(agent["id"],quiz["id"],max_score,epoch)
+    _s=_fetchone_session(sid)
+    if _s: epoch=_epoch_of(_s)
+    print(f"[QuizAgent] session {sid} agent={agent['id']} quiz={quiz['id']} départ={epoch:.0f} (reste {quiz['duree_minutes']*60-(time.time()-epoch):.0f}s)")
     st.session_state.current_quiz=quiz
     st.session_state.quiz_questions=questions
     st.session_state.quiz_start_time=epoch
@@ -890,12 +894,12 @@ def _tab_overview():
             init_r=(r["nom"][0]+(r["prenom"][0] if r["prenom"] else "")).upper()
             # Format time
             try:
-                dt=datetime.fromisoformat(r["completed_at"])
+                dt=datetime.fromisoformat(str(r["completed_at"]))
                 diff=datetime.now()-dt
                 if diff.seconds<3600:    tstr=f"Il y a {diff.seconds//60} min"
                 elif diff.days==0:       tstr=f"Il y a {diff.seconds//3600}h"
                 else:                    tstr=dt.strftime("%d/%m %H:%M")
-            except: tstr=r["completed_at"][:16] if r["completed_at"] else "—"
+            except: tstr=str(r["completed_at"])[:16] if r["completed_at"] else "—"
             items+=(f'<div class="activity-item">'
                     f'<div class="act-av">{init_r}</div>'
                     f'<div><div class="act-name">{r["nom"]} {r["prenom"]}</div>'
