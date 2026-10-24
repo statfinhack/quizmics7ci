@@ -309,15 +309,54 @@ def _save_state():
         pass
 
 
+def _resolve_session_epoch(sess):
+    """Retourne l'epoch de début réel d'une session, résistant aux valeurs corrompues.
+
+    Stratégie :
+    1. Utilise start_time_epoch s'il est cohérent avec started_at (≤ 30 s d'écart).
+    2. Sinon utilise started_at (jamais écrasé) comme référence de secours.
+    Cela corrige le cas où l'ancien code sauvegardait time.time() de restauration
+    à la place de l'epoch d'origine, ce qui faisait afficher 15 min au retour.
+    """
+    import re as _re
+    ref_epoch = None
+    started_at = sess.get("started_at")
+    if started_at:
+        try:
+            from datetime import datetime, timezone as _tz
+            s = str(started_at).strip()
+            s = _re.sub(r'\+(\d{2})$', r'+\1:00', s)   # +00 → +00:00
+            s = s.replace("Z", "+00:00").replace(" ", "T")
+            dt = datetime.fromisoformat(s)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=_tz.utc)
+            ref_epoch = dt.timestamp()
+        except Exception:
+            pass
+
+    raw = sess.get("start_time_epoch")
+    if raw is not None:
+        try:
+            candidate = float(raw)
+            # Valide si proche de started_at (≤ 30 s) → epoch d'origine intact
+            if ref_epoch is None or abs(candidate - ref_epoch) <= 30:
+                return candidate
+            # Sinon corrompue (timestamp de restauration sauvé par ancien code) → ignorer
+        except (TypeError, ValueError):
+            pass
+
+    return ref_epoch  # None si started_at absent ou illisible
+
+
 def _restore_state():
     """Restaure l'état depuis les query params au démarrage."""
     try:
         qp = st.query_params
 
-        # Restaurer l'agent
+        # Restaurer l'agent (uniquement si publié)
         if "a" in qp and not st.session_state.current_agent:
             agent = _cached_get_agent(qp["a"])
-            if agent:
+            if agent and agent.get("published"):
                 st.session_state.current_agent = agent
 
         # Restaurer le login admin
@@ -342,8 +381,7 @@ def _restore_state():
                         answers = {int(k) if str(k).isdigit() else k: v for k,v in answers.items()}
                     except Exception:
                         answers = {}
-                    _epoch_raw = sess.get("start_time_epoch")
-                    _epoch = float(_epoch_raw) if _epoch_raw else 0
+                    _epoch = _resolve_session_epoch(sess) or 0
                     remaining = max(0, min(quiz["duree_minutes"]*60 - (time.time() - _epoch), quiz["duree_minutes"]*60)) if _epoch > 0 else 0
                     if remaining > 10:
                         st.session_state.current_quiz = quiz
@@ -603,11 +641,19 @@ def _start_quiz(agent, code):
         quiz=_cached_get_quiz_by_code(code.strip())
     if not quiz: st.error("Code incorrect ou quiz désactivé."); return
 
+    # ── Vérifier que l'agent est publié avant de composer ──
+    if not agent.get("published"):
+        st.error("⛔ Votre compte n'est pas encore activé. Contactez votre superviseur.")
+        return
+
     # ── Vérifier session en cours (pour restore après refresh) ──
     incomplete=get_incomplete_session(agent["id"],quiz["id"])
-    if incomplete and incomplete.get("start_time_epoch"):
-        epoch=float(incomplete["start_time_epoch"])
-        remaining=max(0, min(quiz["duree_minutes"]*60-(time.time()-epoch), quiz["duree_minutes"]*60))
+    if incomplete:
+        epoch=_resolve_session_epoch(incomplete)
+        if epoch is not None:
+            remaining=max(0, min(quiz["duree_minutes"]*60-(time.time()-epoch), quiz["duree_minutes"]*60))
+        else:
+            remaining=0
         if 5 < remaining:  # encore du temps (et valeur cohérente)
             try:
                 raw=incomplete.get("answers_json") or "{}"
@@ -803,13 +849,13 @@ def render_agent_quiz():
         go("agent_result")
         return
 
-    # ── Sauvegarde auto des réponses (uniquement si pas en train de soumettre) ──
+    # ── Sauvegarde auto des réponses (sans toucher à start_time_epoch) ──
     if st.session_state.session_id and not st.session_state.quiz_submitted:
         try:
-            save_quiz_progress(
+            from database import save_quiz_answers as _save_answers
+            _save_answers(
                 st.session_state.session_id,
                 json.dumps(st.session_state.quiz_answers),
-                st.session_state.quiz_start_time
             )
         except Exception: pass
 

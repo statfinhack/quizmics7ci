@@ -415,6 +415,12 @@ def save_quiz_progress(session_id, answers_json_str, start_time_epoch, devices_l
         _run("UPDATE sessions SET answers_json=?,start_time_epoch=? WHERE id=? AND completed=0",
              (answers_json_str, start_time_epoch, session_id))
 
+def save_quiz_answers(session_id, answers_json_str):
+    """Sauvegarde uniquement les réponses, sans toucher à start_time_epoch.
+    Utilisé par l'auto-save du quiz pour ne pas corrompre l'epoch d'origine."""
+    _run("UPDATE sessions SET answers_json=? WHERE id=? AND completed=0",
+         (answers_json_str, session_id))
+
 def get_incomplete_session(agent_id, quiz_id):
     return _fetchone(
         "SELECT * FROM sessions WHERE agent_id=? AND quiz_id=? AND completed=0 ORDER BY started_at DESC LIMIT 1",
