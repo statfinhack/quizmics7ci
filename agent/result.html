@@ -2,16 +2,14 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="color-scheme" content="light">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Résultat</title>
+<title>Résultat — QuizAgent CI</title>
 <script src="config.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  color-scheme:only light;
   --blue:#2563EB;--blue-d:#1D4ED8;--blue-x:#1E3A8A;
   --blue-l:#EFF6FF;--blue-m:#BFDBFE;
   --green:#059669;--orange:#D97706;--red:#DC2626;
@@ -20,9 +18,7 @@
   --shadow:0 1px 3px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.05);
   --shadow-b:0 8px 32px rgba(37,99,235,.22);
 }
-html{filter:none!important;-webkit-filter:none!important;background:#F0F4FF!important;color:#0F172A!important}
-html,body{color-scheme:only light;font-family:'Inter',sans-serif;background:#F0F4FF!important;min-height:100vh;color:#0F172A!important}
-@media(prefers-color-scheme:dark){html,body{filter:none!important;-webkit-filter:none!important;background:#F0F4FF!important;color:#0F172A!important}}
+html,body{font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;color:var(--text)}
 .wrap{max-width:600px;margin:0 auto;padding:0 16px 60px}
 
 .score-card{
@@ -66,13 +62,12 @@ html,body{color-scheme:only light;font-family:'Inter',sans-serif;background:#F0F
 }
 </style>
 </head>
-<body style="background:#F0F4FF;color:#0F172A">
+<body>
 <div class="wrap">
   <div id="result-content"></div>
 </div>
 
 <script>
-document.title = "Résultat — " + PROJECT_NAME;
 const result = JSON.parse(sessionStorage.getItem("qa_result") || "null");
 if (!result) { window.location.href = "index.html"; }
 

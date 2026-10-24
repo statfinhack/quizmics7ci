@@ -2,16 +2,14 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="color-scheme" content="light">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>QuizAgent</title>
+<title>QuizAgent CI</title>
 <script src="config.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  color-scheme:only light;
   --blue:#2563EB;--blue-d:#1D4ED8;--blue-x:#1E3A8A;
   --blue-l:#EFF6FF;--blue-m:#BFDBFE;
   --green:#059669;--red:#DC2626;
@@ -21,14 +19,12 @@
   --shadow-b:0 8px 32px rgba(37,99,235,.22);
   --r:14px;--rs:10px;
 }
-html{filter:none!important;-webkit-filter:none!important;background:#F0F4FF!important;color:#0F172A!important}
-html,body{color-scheme:only light;font-family:'Inter',sans-serif;background:#F0F4FF!important;min-height:100vh;color:#0F172A!important}
-@media(prefers-color-scheme:dark){html,body{filter:none!important;-webkit-filter:none!important;background:#F0F4FF!important;color:#0F172A!important}}
+html,body{font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;color:var(--text)}
 .wrap{max-width:600px;margin:0 auto}
 
 /* Hero */
 .hero{
-  background:linear-gradient(145deg,#9A3412 0%,#EA580C 45%,#166534 100%);
+  background:linear-gradient(145deg,var(--blue-x) 0%,var(--blue-d) 45%,#3B82F6 100%);
   padding:52px 28px 48px;text-align:center;
   position:relative;overflow:hidden;
 }
@@ -86,7 +82,7 @@ html,body{color-scheme:only light;font-family:'Inter',sans-serif;background:#F0F
   color:var(--blue-d);font-weight:800;font-size:14px;
   display:flex;align-items:center;justify-content:center;
 }
-.agent-name{font-weight:700;font-size:15px;color:#0F172A}
+.agent-name{font-weight:700;font-size:15px;color:var(--text)}
 .agent-mat{font-size:.8rem;color:var(--text3);margin-top:2px}
 
 /* Étapes */
@@ -106,7 +102,7 @@ html,body{color-scheme:only light;font-family:'Inter',sans-serif;background:#F0F
   color:var(--blue-d);font-weight:800;font-size:13px;
   display:flex;align-items:center;justify-content:center;
 }
-.step-name{font-weight:700;font-size:1rem;color:#0F172A}
+.step-name{font-weight:700;font-size:1rem;color:var(--text)}
 .step-sub{font-size:.8rem;color:var(--text3);margin-top:2px}
 
 /* Loader */
@@ -129,12 +125,12 @@ html,body{color-scheme:only light;font-family:'Inter',sans-serif;background:#F0F
 .spacer2{height:8px}
 </style>
 </head>
-<body style="background:#F0F4FF;color:#0F172A">
+<body>
 <div class="wrap">
   <div class="hero">
     <div class="hero-badge">📋 Plateforme d'évaluation</div>
     <div class="hero-icon">📝</div>
-    <h1 class="hero-title" id="heroTitle">QuizAgent</h1>
+    <h1 class="hero-title">QuizAgent CI</h1>
     <p class="hero-sub">Évaluation des agents de terrain</p>
   </div>
 
@@ -177,10 +173,7 @@ html,body{color-scheme:only light;font-family:'Inter',sans-serif;background:#F0F
 </div>
 
 <script>
-
 // SUPA_URL et SUPA_KEY chargés depuis config.js
-document.title = PROJECT_NAME;
-const el = document.getElementById("heroTitle"); if(el) el.textContent = PROJECT_NAME;
 
 let selectedAgent = null;
 
@@ -237,7 +230,7 @@ async function searchAgents(q) {
   try {
     const qLow = q.toLowerCase();
     const agents = await supabase(
-      `agents?select=id,nom,prenom,matricule&or=(nom.ilike.*${encodeURIComponent(q)}*,prenom.ilike.*${encodeURIComponent(q)}*,matricule.ilike.*${encodeURIComponent(q)}*)&order=nom.asc&limit=15`
+      `agents?select=id,nom,prenom,matricule&published=eq.1&or=(nom.ilike.*${encodeURIComponent(q)}*,prenom.ilike.*${encodeURIComponent(q)}*,matricule.ilike.*${encodeURIComponent(q)}*)&order=nom.asc&limit=15`
     );
     if (!agents || agents.length === 0) {
       list.innerHTML = '<div class="no-results">Aucun agent trouvé. Contactez votre superviseur.</div>';
@@ -297,7 +290,7 @@ async function startQuiz() {
 
   try {
     // Chercher le quiz
-    const quizzes = await supabase(`quizzes?code=ilike.${encodeURIComponent(code)}&limit=1`);
+    const quizzes = await supabase(`quizzes?code=eq.${encodeURIComponent(code)}&actif=eq.1&limit=1`);
     if (!quizzes || quizzes.length === 0) {
       errEl.textContent = "Code incorrect ou quiz désactivé."; errEl.classList.add("show");
       return;
