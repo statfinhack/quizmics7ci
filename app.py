@@ -252,6 +252,17 @@ def _save_state():
         pass
 
 
+def _epoch_of(sess):
+    """Heure de départ ORIGINALE de la session (jamais réinitialisée)."""
+    try:
+        raw = sess.get("start_time_epoch")
+        if raw and float(raw) > 0: return float(raw)
+    except (TypeError, ValueError): pass
+    try:
+        return datetime.fromisoformat(str(sess.get("started_at")).replace("Z","+00:00")).timestamp()
+    except Exception: return time.time()
+
+
 def _restore_state():
     """Restaure l'état depuis les query params au démarrage."""
     try:
@@ -285,11 +296,11 @@ def _restore_state():
                         answers = {int(k) if str(k).isdigit() else k: v for k,v in answers.items()}
                     except Exception:
                         answers = {}
-                    remaining = quiz["duree_minutes"]*60 - (time.time() - float(sess.get("start_time_epoch") or time.time()))
+                    remaining = quiz["duree_minutes"]*60 - (time.time() - _epoch_of(sess))
                     if remaining > 10:
                         st.session_state.current_quiz = quiz
                         st.session_state.quiz_questions = questions
-                        st.session_state.quiz_start_time = float(sess.get("start_time_epoch") or time.time())
+                        st.session_state.quiz_start_time = _epoch_of(sess)
                         st.session_state.quiz_answers = answers
                         st.session_state.session_id = sid
                         st.session_state.page = "agent_quiz"
@@ -544,8 +555,8 @@ def _start_quiz(agent, code):
 
     # ── Vérifier session en cours (pour restore après refresh) ──
     incomplete=get_incomplete_session(agent["id"],quiz["id"])
-    if incomplete and incomplete.get("start_time_epoch"):
-        epoch=incomplete["start_time_epoch"]
+    if incomplete:
+        epoch=_epoch_of(incomplete)
         remaining=quiz["duree_minutes"]*60-(time.time()-epoch)
         if remaining>15:  # encore du temps
             try:

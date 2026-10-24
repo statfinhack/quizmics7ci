@@ -379,13 +379,15 @@ def create_session(agent_id, quiz_id, max_score, start_time_epoch):
         "INSERT INTO sessions (agent_id,quiz_id,max_score,start_time_epoch,answers_json) VALUES (?,?,?,?,'{}')",
         (agent_id, quiz_id, max_score, start_time_epoch))
 
-def save_quiz_progress(session_id, answers_json_str, start_time_epoch, devices_log=None):
+def save_quiz_progress(session_id, answers_json_str, start_time_epoch=None, devices_log=None):
+    """Sauvegarde les réponses. start_time_epoch est IGNORÉ volontairement :
+    l'heure de départ est fixée une seule fois à la création de la session."""
     if devices_log is not None:
-        _run("UPDATE sessions SET answers_json=?,start_time_epoch=?,devices_log=? WHERE id=? AND completed=0",
-             (answers_json_str, start_time_epoch, devices_log, session_id))
+        _run("UPDATE sessions SET answers_json=?,devices_log=? WHERE id=? AND completed=0",
+             (answers_json_str, devices_log, session_id))
     else:
-        _run("UPDATE sessions SET answers_json=?,start_time_epoch=? WHERE id=? AND completed=0",
-             (answers_json_str, start_time_epoch, session_id))
+        _run("UPDATE sessions SET answers_json=? WHERE id=? AND completed=0",
+             (answers_json_str, session_id))
 
 def get_incomplete_session(agent_id, quiz_id):
     return _fetchone(
