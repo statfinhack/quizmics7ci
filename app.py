@@ -6,8 +6,7 @@ import pandas as pd
 import json, time, io, re, requests
 from datetime import datetime, timedelta
 
-import config, hashlib, hmac as _hmac
-import database as _db_module
+import config, hashlib
 from functools import lru_cache
 from database import (
     init_db, search_agents, get_all_agents, upsert_agents,
@@ -37,24 +36,8 @@ def _fmt(t):
     return t
 
 
-SUPA_URL_ST     = "https://rmmizzwnierlvnojemna.supabase.co"
-SUPA_KEY_ST     = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtbWl6enduaWVybHZub2plbW5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0MDk3NDgsImV4cCI6MjEwNzk4NTc0OH0.rhzVfVgKQ1r0dARnJKjDtB9W9LM3aoeHI7IxoeXBxYw"
-SUPA_SERVICE_ST = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtbWl6enduaWVybHZub2plbW5hIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MjQwOTc0OCwiZXhwIjoyMTA3OTg1NzQ4fQ.sBDXGO9Cpfwul5EUjymM81T1kzUcvhduytA_8aXzVz4"
-
-def _ensure_bucket():
-    """Crée le bucket quiz-images s'il n'existe pas encore."""
-    try:
-        r = requests.post(
-            f"{SUPA_URL_ST}/storage/v1/bucket",
-            json={"id": "quiz-images", "name": "quiz-images", "public": True},
-            headers={"apikey": SUPA_SERVICE_ST, "Authorization": f"Bearer {SUPA_SERVICE_ST}",
-                     "Content-Type": "application/json"},
-            timeout=10)
-        # 200/201 = créé, 400 avec "already exists" = déjà là, les deux sont OK
-    except Exception:
-        pass
-
-_ensure_bucket()
+SUPA_URL_ST = config.SUPABASE_URL
+SUPA_KEY_ST = config.SUPABASE_ANON_KEY
 
 def _upload_image(file_obj, label):
     ext  = (file_obj.name.rsplit(".",1)[-1] or "jpg").lower()
@@ -62,7 +45,7 @@ def _upload_image(file_obj, label):
     r = requests.put(
         f"{SUPA_URL_ST}/storage/v1/object/quiz-images/{name}",
         data=file_obj.getvalue(),
-        headers={"apikey": SUPA_SERVICE_ST, "Authorization": f"Bearer {SUPA_SERVICE_ST}",
+        headers={"apikey": SUPA_KEY_ST, "Authorization": f"Bearer {SUPA_KEY_ST}",
                  "Content-Type": f"image/{ext}", "x-upsert": "true"},
         timeout=30)
     if r.status_code not in (200,201):
@@ -97,7 +80,7 @@ html,body,[class*="css"],input,textarea,button,select,.stMarkdown p,label{font-f
 .tt{color:#fff;font-size:1.05rem;font-weight:700}
 /* ── Hero ── */
 .hero{background:linear-gradient(145deg,var(--Bd),var(--B));border-radius:18px;padding:36px 24px 32px;text-align:center;margin-bottom:20px;box-shadow:var(--shb)}
-.hi{font-size:2.8rem;margin-bottom:6px}.ht{color:#fff!important;font-size:1.85rem;font-weight:900;margin:0 0 5px;letter-spacing:-.5px}.hs{color:rgba(255,255,255,.72);font-size:.95rem;margin:0}
+.hi{font-size:2.8rem;margin-bottom:6px}.ht{color:#fff;font-size:1.85rem;font-weight:900;margin:0 0 5px;letter-spacing:-.5px}.hs{color:rgba(255,255,255,.72);font-size:.95rem;margin:0}
 /* ── Boutons ── */
 .stButton>button{font-family:'Outfit',sans-serif!important;font-weight:600!important;font-size:15px!important;border-radius:10px!important;padding:13px 20px!important;width:100%!important;transition:all .15s!important;min-height:48px!important}
 .stButton>button[kind="primary"]{background:var(--B)!important;border:none!important;color:#fff!important;box-shadow:0 3px 10px rgba(29,78,216,.3)!important}
@@ -217,47 +200,7 @@ hr{border:none!important;border-top:1.5px solid var(--bor)!important;margin:18px
 .pill-tot{background:var(--Bm);color:var(--Bd)}
 </style>""", unsafe_allow_html=True)
 
-@st.cache_resource
-def _init_db_once():
-    import os
-    db_url = os.environ.get("DATABASE_URL","")
-    import database as _dbm
-    backend = "PostgreSQL/Supabase" if _dbm.USE_PG else "SQLite (LOCAL — DONNÉES ÉPHÉMÈRES)"
-    print(f"[QuizAgent] Backend DB: {backend} | DATABASE_URL définie: {'OUI' if db_url else 'NON'}")
-    init_db()
-_init_db_once()
-
-@st.cache_resource
-def _warmup_pool():
-    """Force l'initialisation du pool PostgreSQL une seule fois, évite 3 s à chaque rerun."""
-    if _db_module.USE_PG:
-        try:
-            conn = _db_module.get_conn()
-            _db_module.release(conn)
-        except Exception:
-            pass
-    return True
-_warmup_pool()
-
-@st.cache_data(ttl=30)
-def _cached_get_agent(aid):
-    return get_agent_by_id(int(aid))
-
-@st.cache_data(ttl=30)
-def _cached_search_agents(q):
-    return search_agents(q)
-
-@st.cache_data(ttl=20)
-def _cached_get_quiz_by_code(code):
-    return get_quiz_by_code(code)
-
-@st.cache_data(ttl=20)
-def _cached_get_all_quizzes():
-    return get_all_quizzes()
-
-@st.cache_data(ttl=20)
-def _cached_get_stats():
-    return get_stats()
+init_db()
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -309,33 +252,15 @@ def _save_state():
         pass
 
 
-def _resolve_session_epoch(sess):
-    """Retourne start_time_epoch de la session.
-
-    Ce champ est écrit une seule fois à la création (create_session) et
-    n'est JAMAIS écrasé par l'auto-save depuis que save_quiz_answers est
-    utilisé. On le retourne directement sans tentative de validation contre
-    started_at (started_at peut valoir l'heure de migration sur les vieilles
-    lignes, ce qui fausserait la comparaison).
-    """
-    raw = sess.get("start_time_epoch")
-    if raw is not None:
-        try:
-            return float(raw)
-        except (TypeError, ValueError):
-            pass
-    return None
-
-
 def _restore_state():
     """Restaure l'état depuis les query params au démarrage."""
     try:
         qp = st.query_params
 
-        # Restaurer l'agent (uniquement si publié)
+        # Restaurer l'agent
         if "a" in qp and not st.session_state.current_agent:
-            agent = _cached_get_agent(qp["a"])
-            if agent and agent.get("published"):
+            agent = get_agent_by_id(int(qp["a"]))
+            if agent:
                 st.session_state.current_agent = agent
 
         # Restaurer le login admin
@@ -360,12 +285,11 @@ def _restore_state():
                         answers = {int(k) if str(k).isdigit() else k: v for k,v in answers.items()}
                     except Exception:
                         answers = {}
-                    _epoch = _resolve_session_epoch(sess) or 0
-                    remaining = max(0, min(quiz["duree_minutes"]*60 - (time.time() - _epoch), quiz["duree_minutes"]*60)) if _epoch > 0 else 0
+                    remaining = quiz["duree_minutes"]*60 - (time.time() - float(sess.get("start_time_epoch") or time.time()))
                     if remaining > 10:
                         st.session_state.current_quiz = quiz
                         st.session_state.quiz_questions = questions
-                        st.session_state.quiz_start_time = _epoch
+                        st.session_state.quiz_start_time = float(sess.get("start_time_epoch") or time.time())
                         st.session_state.quiz_answers = answers
                         st.session_state.session_id = sid
                         st.session_state.page = "agent_quiz"
@@ -576,19 +500,8 @@ def render_agent_search():
     if len(q)<2:
         if len(q)==1: st.caption("Continuez à taper…")
         return
-    with st.spinner("Chargement…"):
-        agents = _cached_search_agents(q)
+    agents = search_agents(q)
     if not agents:
-        # Vérifier si l'agent existe mais n'est pas encore publié
-        try:
-            from database import search_unpublished_agents as _search_unp
-            unp = _search_unp(q)
-            if unp:
-                noms = ", ".join(f"{a['nom']} {a['prenom']}".strip() for a in unp[:3])
-                st.error(f"⛔ Votre compte n'est pas encore activé pour composer un quiz. Contactez votre superviseur. ({noms})")
-                return
-        except Exception:
-            pass
         st.warning("Aucun agent trouvé. Vérifiez l'orthographe ou contactez votre superviseur.")
         return
     slbl(f"{len(agents)} résultat(s) — appuyez sur votre nom")
@@ -606,11 +519,6 @@ def render_agent_search():
 def render_agent_quiz_code():
     agent=st.session_state.current_agent
     if not agent: go("agent_search"); return
-    # ── Blocage des agents non-publiés dès la page de saisie du code ──
-    if not agent.get("published"):
-        st.error("⛔ Votre compte n'est pas encore activé. Contactez votre superviseur.")
-        if st.button("← Retour",key="aqc_pub_back"): go("home")
-        return
     topbar("Accès au Quiz","📋")
     init=(agent["nom"][0]+(agent["prenom"][0] if agent["prenom"] else "")).upper()
     st.markdown(
@@ -631,24 +539,15 @@ def render_agent_quiz_code():
 
 def _start_quiz(agent, code):
     if not (code or "").strip(): st.warning("Saisissez un code."); return
-    with st.spinner("Chargement du quiz…"):
-        quiz=_cached_get_quiz_by_code(code.strip())
+    quiz=get_quiz_by_code(code.strip())
     if not quiz: st.error("Code incorrect ou quiz désactivé."); return
-
-    # ── Vérifier que l'agent est publié avant de composer ──
-    if not agent.get("published"):
-        st.error("⛔ Votre compte n'est pas encore activé. Contactez votre superviseur.")
-        return
 
     # ── Vérifier session en cours (pour restore après refresh) ──
     incomplete=get_incomplete_session(agent["id"],quiz["id"])
-    if incomplete:
-        epoch=_resolve_session_epoch(incomplete)
-        if epoch is not None:
-            remaining=max(0, min(quiz["duree_minutes"]*60-(time.time()-epoch), quiz["duree_minutes"]*60))
-        else:
-            remaining=0
-        if 5 < remaining:  # encore du temps (et valeur cohérente)
+    if incomplete and incomplete.get("start_time_epoch"):
+        epoch=incomplete["start_time_epoch"]
+        remaining=quiz["duree_minutes"]*60-(time.time()-epoch)
+        if remaining>15:  # encore du temps
             try:
                 raw=incomplete.get("answers_json") or "{}"
                 answers=json.loads(raw)
@@ -843,13 +742,13 @@ def render_agent_quiz():
         go("agent_result")
         return
 
-    # ── Sauvegarde auto des réponses (sans toucher à start_time_epoch) ──
+    # ── Sauvegarde auto des réponses (uniquement si pas en train de soumettre) ──
     if st.session_state.session_id and not st.session_state.quiz_submitted:
         try:
-            from database import save_quiz_answers as _save_answers
-            _save_answers(
+            save_quiz_progress(
                 st.session_state.session_id,
                 json.dumps(st.session_state.quiz_answers),
+                st.session_state.quiz_start_time
             )
         except Exception: pass
 
@@ -905,20 +804,8 @@ def render_admin_login():
         if st.button("← Retour",key="al_back",use_container_width=True): go("home")
     with c2:
         if st.button("Se connecter",key="al_login",type="primary",use_container_width=True):
-            fails = st.session_state.get("admin_fails", 0)
-            if fails >= 5:
-                st.error("Trop de tentatives. Réessayez plus tard.")
-                st.stop()
-            elif not pwd:
-                st.warning("Saisissez le mot de passe.")
-            elif _hmac.compare_digest(pwd, config.ADMIN_PASSWORD):
-                st.session_state.admin_logged=True
-                st.session_state.admin_fails=0
-                _save_state(); go("admin_dashboard")
-            else:
-                st.session_state.admin_fails = fails + 1
-                time.sleep(min(2 ** fails, 30))
-                st.error("Mot de passe incorrect.")
+            if pwd==config.ADMIN_PASSWORD: st.session_state.admin_logged=True; _save_state(); go("admin_dashboard")
+            else: st.error("Mot de passe incorrect.")
     st.markdown('</div>',unsafe_allow_html=True)
 
 
@@ -945,7 +832,7 @@ def render_admin_dashboard():
 # ── Vue d'ensemble ────────────────────────────────────────────
 
 def _tab_overview():
-    stats=_cached_get_stats()
+    stats=get_stats()
 
     kpi_grid([
         ("👥", stats["total_agents"],   "Agents total",  "b"),
@@ -997,7 +884,7 @@ def _tab_overview():
                 if diff.seconds<3600:    tstr=f"Il y a {diff.seconds//60} min"
                 elif diff.days==0:       tstr=f"Il y a {diff.seconds//3600}h"
                 else:                    tstr=dt.strftime("%d/%m %H:%M")
-            except: tstr=str(r["completed_at"])[:16] if r["completed_at"] else "—"
+            except: tstr=r["completed_at"][:16] if r["completed_at"] else "—"
             items+=(f'<div class="activity-item">'
                     f'<div class="act-av">{init_r}</div>'
                     f'<div><div class="act-name">{r["nom"]} {r["prenom"]}</div>'
@@ -1108,7 +995,7 @@ def _tab_quizzes():
     if st.button("➕  Créer un quiz",key="qz_create_quiz",type="primary",use_container_width=True):
         st.session_state.edit_quiz_id=None; go("admin_quiz_edit")
     st.markdown("---")
-    quizzes=_cached_get_all_quizzes()
+    quizzes=get_all_quizzes()
     if not quizzes: st.info("Aucun quiz."); return
     for quiz in quizzes:
         nb=len(get_questions(quiz["id"]))
@@ -1122,12 +1009,8 @@ def _tab_quizzes():
             with c1:
                 if st.button("✏️ Modifier",key=f"eq_{quiz['id']}",use_container_width=True): st.session_state.edit_quiz_id=quiz["id"]; go("admin_quiz_edit")
             with c2:
-                _actif_now = st.session_state.get(f"_actif_{quiz['id']}", quiz["actif"])
-                if st.button("🟢 Activer" if not _actif_now else "🔴 Désactiver",key=f"tq_{quiz['id']}",use_container_width=True):
-                    _new = 0 if _actif_now else 1
-                    update_quiz(quiz["id"],quiz["titre"],quiz["code"],quiz["duree_minutes"],quiz["description"],_new,quiz.get("show_score",1),quiz.get("randomize_questions",0))
-                    st.session_state[f"_actif_{quiz['id']}"] = bool(_new)
-                    st.rerun()
+                if st.button("🟢 Activer" if not quiz["actif"] else "🔴 Désactiver",key=f"tq_{quiz['id']}",use_container_width=True):
+                    update_quiz(quiz["id"],quiz["titre"],quiz["code"],quiz["duree_minutes"],quiz["description"],0 if quiz["actif"] else 1,quiz.get("show_score",1),quiz.get("randomize_questions",0)); st.rerun()
             with c3:
                 if st.button("🗑 Suppr.",key=f"dq_{quiz['id']}",use_container_width=True): delete_quiz(quiz["id"]); st.rerun()
             # Export PDF corrigé
@@ -1147,7 +1030,7 @@ def _tab_quizzes():
 # ── Résultats ─────────────────────────────────────────────────
 
 def _tab_results():
-    quizzes = _cached_get_all_quizzes()
+    quizzes = get_all_quizzes()
     opts = {0: "— Tous les quiz —"}
     opts.update({q["id"]: f"{q['titre']} ({q['code']})" for q in quizzes})
     sel = st.selectbox("Quiz", list(opts.keys()), format_func=lambda x: opts[x],
@@ -1162,7 +1045,7 @@ def _tab_results():
     df["agent"] = df["nom"] + " " + df["prenom"]
     disp = df[["agent","matricule","quiz_titre","score","max_score","pct","completed_at"]].copy()
     disp.columns = ["Agent","Matricule","Quiz","Score","Sur","%","Date"]
-    st.dataframe(disp, use_container_width=True, hide_index=True)
+    st.dataframe(disp, use_container_width=True)
 
     # ── Export choix ──
     mode = st.radio("Export", ["Résumé uniquement", "Avec réponses par question"],
@@ -1275,7 +1158,7 @@ def _strip_html(text):
 
 
 def _tab_question_stats():
-    quizzes = _cached_get_all_quizzes()
+    quizzes = get_all_quizzes()
     opts = {0: "— Tous les quiz —"}
     opts.update({q["id"]: f"{q['titre']} ({q['code']})" for q in quizzes})
     sel = st.selectbox("Filtrer par quiz", list(opts.keys()), format_func=lambda x: opts[x],
@@ -1310,11 +1193,10 @@ def _tab_question_stats():
         txt_clean = _strip_html(s["texte"])
         preview = txt_clean[:90] + ("…" if len(txt_clean) > 90 else "")
 
-        q_num = s.get("num", i+1)
         st.markdown(f"""
         <div class="qstat-card">
           <div class="qstat-header">
-            <span class="qstat-num {badge_cls}">Q{q_num} · {taux:.0f}% erreurs</span>
+            <span class="qstat-num {badge_cls}">#{i+1} · {taux:.0f}% erreurs</span>
             <span class="qstat-txt">{preview}</span>
           </div>
           <div class="qstat-bar-wrap">
@@ -1540,7 +1422,7 @@ def render_admin_quiz_edit():
 # ══════════════════════════════════════════════════════════════
 
 def _tab_surveillance():
-    quizzes=_cached_get_all_quizzes()
+    quizzes=get_all_quizzes()
     if not quizzes: st.info("Aucun quiz."); return
     opts={0:"— Tous —"}; opts.update({q["id"]:f"{q['titre']} ({q['code']})" for q in quizzes})
     sel=st.selectbox(" ",list(opts.keys()),format_func=lambda x:opts[x],label_visibility="collapsed",key="surv_sel")

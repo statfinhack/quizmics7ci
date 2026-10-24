@@ -210,7 +210,6 @@ def init_db():
     _safe_alter("quizzes",  "show_correction",     "INTEGER DEFAULT 0")
     _safe_alter("questions","image_url",           "TEXT DEFAULT ''")
     _safe_alter("quizzes",  "anticheat_max",       "INTEGER DEFAULT 3")
-    _safe_alter("sessions", "started_at",          "TEXT DEFAULT CURRENT_TIMESTAMP")
 
     release(conn)
 
@@ -271,13 +270,6 @@ def search_agents(q):
         "SELECT * FROM agents WHERE published=1 AND (LOWER(nom) LIKE ? OR LOWER(prenom) LIKE ? OR LOWER(matricule) LIKE ?) ORDER BY nom,prenom",
         (p, p, p))
 
-def search_unpublished_agents(q):
-    """Vérifie si un nom correspond à des agents non-publiés (pour message d'erreur explicite)."""
-    p = f"%{q.lower()}%"
-    return _fetchall(
-        "SELECT id,nom,prenom,matricule FROM agents WHERE published=0 AND (LOWER(nom) LIKE ? OR LOWER(prenom) LIKE ? OR LOWER(matricule) LIKE ?) ORDER BY nom,prenom",
-        (p, p, p))
-
 def get_all_agents():
     return _fetchall("SELECT * FROM agents ORDER BY nom,prenom")
 
@@ -285,8 +277,7 @@ def get_agent_by_id(aid):
     return _fetchone("SELECT * FROM agents WHERE id=?", (aid,))
 
 def upsert_agents(df):
-    # 1. Préparer les lignes valides
-    rows = []
+    n = 0
     for _, row in df.iterrows():
         nom = str(row.get("nom","")).strip()
         pre = str(row.get("prenom","")).strip()
@@ -294,31 +285,11 @@ def upsert_agents(df):
         if not nom or nom.lower()=="nan": continue
         if pre.lower()=="nan": pre=""
         if mat.lower()=="nan": mat=""
-        rows.append((nom, pre, mat))
-    if not rows:
-        return 0
-
-    if USE_PG:
-        conn = get_conn()
-        try:
-            with conn.cursor() as c:
-                c.executemany(
-                    "INSERT INTO agents (nom, prenom, matricule) VALUES (%s, %s, %s)",
-                    rows)
-            conn.commit()
-        except Exception:
-            try: conn.rollback()
-            except Exception: pass
-            raise
-        finally:
-            release(conn)
-    else:
-        conn = get_conn()
-        conn.executemany(
-            "INSERT INTO agents (nom, prenom, matricule) VALUES (?, ?, ?)", rows)
-        conn.commit()
-        conn.close()
-    return len(rows)
+        exists = _fetchone("SELECT id FROM agents WHERE nom=? AND prenom=?", (nom, pre))
+        if not exists:
+            _execute("INSERT INTO agents (nom,prenom,matricule) VALUES (?,?,?)", (nom, pre, mat))
+            n += 1
+    return n
 
 def set_agent_published(aid, pub):
     _run("UPDATE agents SET published=? WHERE id=?", (pub, aid))
@@ -377,15 +348,8 @@ def delete_quiz(qid):
 
 def get_questions(qid, shuffled=False):
     qs = _fetchall("SELECT * FROM questions WHERE quiz_id=? ORDER BY ordre", (qid,))
-    if qs:
-        q_ids = tuple(q["id"] for q in qs)
-        ph = ",".join(["?"] * len(q_ids))
-        opts = _fetchall(f"SELECT * FROM options WHERE question_id IN ({ph}) ORDER BY question_id,id", q_ids)
-        opts_map = {}
-        for o in opts:
-            opts_map.setdefault(o["question_id"], []).append(o)
-        for q in qs:
-            q["options"] = opts_map.get(q["id"], [])
+    for q in qs:
+        q["options"] = _fetchall("SELECT * FROM options WHERE question_id=?", (q["id"],))
     if shuffled: random.shuffle(qs)
     return qs
 
@@ -423,17 +387,9 @@ def save_quiz_progress(session_id, answers_json_str, start_time_epoch, devices_l
         _run("UPDATE sessions SET answers_json=?,start_time_epoch=? WHERE id=? AND completed=0",
              (answers_json_str, start_time_epoch, session_id))
 
-def save_quiz_answers(session_id, answers_json_str):
-    """Sauvegarde uniquement les réponses, sans toucher à start_time_epoch.
-    Utilisé par l'auto-save du quiz pour ne pas corrompre l'epoch d'origine."""
-    _run("UPDATE sessions SET answers_json=? WHERE id=? AND completed=0",
-         (answers_json_str, session_id))
-
 def get_incomplete_session(agent_id, quiz_id):
-    # ORDER BY id DESC : utilise la clé primaire (toujours présente) pour éviter
-    # un échec silencieux si la colonne started_at n'existe pas encore en prod.
     return _fetchone(
-        "SELECT * FROM sessions WHERE agent_id=? AND quiz_id=? AND completed=0 ORDER BY id DESC LIMIT 1",
+        "SELECT * FROM sessions WHERE agent_id=? AND quiz_id=? AND completed=0 ORDER BY started_at DESC LIMIT 1",
         (agent_id, quiz_id))
 
 def submit_session(session_id, score, records, device_info=None, ip_address=None, quit_count=None, devices_log=None):
@@ -484,20 +440,12 @@ def get_stats():
 
 def get_question_stats(quiz_id):
     questions = get_questions(quiz_id)
-    if not questions:
-        return []
-    q_ids = tuple(q["id"] for q in questions)
-    ph = ",".join(["?"] * len(q_ids))
-    stats_rows = _fetchall(
-        f"SELECT question_id, COUNT(*) as tot, SUM(CASE WHEN is_correct=1 THEN 1 ELSE 0 END) as cor "
-        f"FROM answers WHERE question_id IN ({ph}) GROUP BY question_id",
-        q_ids)
-    stats_map = {r["question_id"]: r for r in stats_rows}
     out = []
     for i, q in enumerate(questions):
-        sr = stats_map.get(q["id"])
-        t = int(sr["tot"]) if sr else 0
-        c = int(sr["cor"]) if sr else 0
+        tot = _fetchone("SELECT COUNT(*) as n FROM answers WHERE question_id=?", (q["id"],))
+        cor = _fetchone("SELECT COUNT(*) as n FROM answers WHERE question_id=? AND is_correct=1", (q["id"],))
+        t = int(list(tot.values())[0]) if tot else 0
+        c = int(list(cor.values())[0]) if cor else 0
         out.append({"num":i+1,"question_id":q["id"],"texte":q["texte"],"type":q["type"],
                     "points":q["points"],"total_reponses":t,"bonnes_reponses":c,
                     "mauvaises_reponses":t-c,"taux_erreur":round(((t-c)/t*100) if t>0 else 0,1)})

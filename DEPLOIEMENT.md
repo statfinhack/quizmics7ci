@@ -74,6 +74,8 @@ URL agents : `https://TON_COMPTE.github.io/quizagent-rgph/agent/`
 | `APP_SUBTITLE` | `Évaluation des agents de terrain` |
 | `ORG_NAME` | `ANStat / Cabinet WELMAT` |
 | `ADMIN_PASSWORD` | Ton mot de passe admin |
+| `SUPABASE_URL` | `https://XXXX.supabase.co` (optionnel, défaut = projet actuel) |
+| `SUPABASE_ANON_KEY` | clé `sb_publishable_…` (optionnel, défaut = projet actuel) |
 
 ### 3.3 Déployer
 Cliquer **Create Web Service** → attendre 3-4 minutes → URL Render = interface admin.
@@ -87,7 +89,7 @@ Cliquer **Create Web Service** → attendre 3-4 minutes → URL Render = interfa
 | `agent/config.js` | `PROJECT_NAME`, `SUPA_URL`, `SUPA_KEY` |
 | Variables Render | `APP_TITLE`, `DATABASE_URL`, `ADMIN_PASSWORD` |
 | Supabase | Nouveau projet + SUPABASE_SETUP.sql |
-| `app.py`, `database.py`, `config.py` | **Rien** — déjà généralisés |
+| `app.py`, `database.py`, `config.py` | **Rien** — seule la config Supabase change (config.py / variables Render) |
 
 ---
 
